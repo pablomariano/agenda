@@ -26,3 +26,18 @@ Dado que el dispositivo de aceptación corre Android 14/15, se deben manejar exp
 * **Autenticación:** Credential Manager con inicio de sesión de Google (OAuth ID Token).
 * **Backend:** Node.js / TypeScript sobre Vercel Serverless Functions.
 * **Base de Datos:** PostgreSQL en Neon (acceso autenticado mediante consultas parametrizadas).
+
+## 4. APK de prueba de Hoy
+
+La demo de Kotlin y Compose se encuentra en `android/`. Abre en el tema claro y permite consultar el avance, las prioridades y las horas previstas de Codex y Gemini con datos de ejemplo. Los avisos de la demo son informativos. Las pestañas de Semana, Proyectos e Ideas se muestran como referencia visual.
+
+Para compilar, configura JDK 17 o 21 y el SDK de Android con API 35 y Build Tools 35.0.0. Usa `ANDROID_HOME` o el archivo local `android/local.properties` para indicar la ruta del SDK.
+
+```bash
+cd android
+./gradlew :app:assembleDebug
+```
+
+El archivo se genera en `app/build/outputs/apk/debug/app-debug.apk`. Se firma con la clave local de depuración y usa el paquete `com.pablomariano.agenda.demo`, separado de la futura app personal.
+
+Para probarlo, transfiere el APK al teléfono y ábrelo. Si Android pide permiso de instalación para la app que abrió el archivo, sigue el aviso del sistema. Luego abre Agenda y toca una prioridad o «Ver avisos».

@@ -6,10 +6,10 @@ El primer prototipo hace que las secciones, tareas y avisos tengan un peso visua
 
 ## What Changes
 
-- Adoptar un tema claro con superficies blancas, fondo menta y acentos verde petróleo y azul. El tema claro reemplaza al oscuro como propuesta visual de la primera versión.
+- Entregar la primera versión de Android con el tema claro de superficies blancas, fondo menta y acentos verde petróleo y azul. La implementación del tema oscuro queda para una etapa posterior.
 - Dar protagonismo al resumen del día y separar visualmente prioridades, recuperaciones y accesos de navegación.
 - Aplicar la misma jerarquía a Semana, Proyectos, Ideas, Registro de recuperación y Ajustes.
-- Actualizar el prototipo editable en el archivo de Figma existente y conservar el diseño oscuro como referencia.
+- Usar el prototipo claro como referencia para Android y conservar el prototipo oscuro en el mismo archivo de Figma para la siguiente etapa.
 
 ## Capabilities
 

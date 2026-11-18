@@ -1,6 +1,6 @@
 # Sistema de diseño de Agenda
 
-El tema claro es la referencia para la primera versión de Android. Figma incluye prototipos claro y oscuro con la misma jerarquía, tipografía y componentes maestros. Las páginas numeradas conservan el diseño anterior.
+La primera versión de Android se implementará y validará con el tema claro. El prototipo oscuro de Figma comparte jerarquía, tipografía y componentes maestros y queda como referencia para una etapa posterior. Las páginas numeradas conservan el diseño anterior.
 
 - [Sistema de diseño en Figma](https://www.figma.com/design/DNdKPG2y6fJvbhWwNLnJ6a?node-id=27-389)
 - [Prototipo claro](https://www.figma.com/design/DNdKPG2y6fJvbhWwNLnJ6a?node-id=21-2)

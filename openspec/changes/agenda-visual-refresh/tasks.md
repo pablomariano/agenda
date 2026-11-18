@@ -7,5 +7,6 @@
 
 ## 2. Aplicación Android
 
-- [ ] 2.1 Aplicar los colores, la tipografía y la jerarquía a los componentes Compose al implementar la interfaz base. Comprobar tamaño de controles, contraste, TalkBack y texto ampliado en Android.
+- [x] 2.0 Entregar un APK de prueba de Hoy en Kotlin y Compose con datos de ejemplo. Comprobar la firma de depuración, la instalación y el arranque en un emulador Android 15.
+- [ ] 2.1 Aplicar la paleta clara, la tipografía y la jerarquía a los componentes Compose de la primera versión. Comprobar tamaño de controles, contraste, TalkBack y texto ampliado en Android.
 - [ ] 2.2 Integrar las vistas con el estado real de la agenda. Comprobar navegación y regreso, día seleccionado, avance derivado, estado vacío y recuperaciones con hora desconocida.
