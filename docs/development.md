@@ -22,7 +22,7 @@ Dado que el dispositivo de aceptación corre Android 14/15, se deben manejar exp
 
 ## 3. Stack Tecnológico de la Solución
 
-* **Cliente Android:** Kotlin + Jetpack Compose (Material 3 con tokens personalizados oscuro/verde azulado).
+* **Cliente Android:** Kotlin + Jetpack Compose y Material 3 con los tokens del [sistema claro de Agenda](design-system.md).
 * **Autenticación:** Credential Manager con inicio de sesión de Google (OAuth ID Token).
 * **Backend:** Node.js / TypeScript sobre Vercel Serverless Functions.
 * **Base de Datos:** PostgreSQL en Neon (acceso autenticado mediante consultas parametrizadas).

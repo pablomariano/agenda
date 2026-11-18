@@ -1,64 +1,58 @@
-# Design System — Agenda
+# Sistema de diseño de Agenda
 
-* **Biblioteca en Figma:** [Agenda — Design System](https://www.figma.com/design/DNdKPG2y6fJvbhWwNLnJ6a)
-* **Equipo de Figma:** `Pablo educ`
-* **Estilo visual:** Tema oscuro sobrio con acento verde azulado (*Teal*).
+El tema claro es la referencia para la primera versión de Android. Figma incluye prototipos claro y oscuro con la misma jerarquía, tipografía y componentes maestros. Las páginas numeradas conservan el diseño anterior.
 
----
+- [Sistema de diseño en Figma](https://www.figma.com/design/DNdKPG2y6fJvbhWwNLnJ6a?node-id=27-389)
+- [Prototipo claro](https://www.figma.com/design/DNdKPG2y6fJvbhWwNLnJ6a?node-id=21-2)
+- [Prototipo oscuro](https://www.figma.com/design/DNdKPG2y6fJvbhWwNLnJ6a?node-id=32-590)
+- [Especificación del rediseño](../openspec/changes/agenda-visual-refresh/specs/mobile-experience/spec.md)
 
-## 1. Tokens de Color y Contraste
+## Color y elevación
 
-Los tokens se han definido asegurando cumplimiento de contraste WCAG AA (mínimo 4.5:1 para texto normal y 3:1 para componentes de interfaz):
+Usar la colección «Agenda / Colores» en Figma y seleccionar el modo Claro u Oscuro en el marco. La sombra «Agenda Claro / Elevación» distingue las tarjetas accionables. Reservar el gradiente de azul petróleo a verde para el resumen de Hoy.
 
-| Token Semántico | Valor Hex | Uso | Ratio de Contraste vs Fondo |
-| :--- | :--- | :--- | :--- |
-| `color/bg/canvas` | `#121212` | Fondo principal de la aplicación | — |
-| `color/bg/surface` | `#1E1E1E` | Superficie de tarjetas y contenedores | — |
-| `color/bg/elevated` | `#282828` | Superficies emergentes, modales o diálogos | — |
-| `color/text/primary` | `#F5F5F5` | Títulos y contenido principal | **15.4:1** (Pasa AAA) |
-| `color/text/secondary` | `#A0A0A0` | Metadatos, etiquetas y subtítulos | **6.5:1** (Pasa AA) |
-| `color/accent` | `#00BFA5` | Acento verde azulado / acciones principales | **8.97:1** (Pasa AAA) |
-| `color/text/on-accent`| `#002A24` | Texto sobre botón o acento verde azulado | **9.1:1** (Pasa AAA) |
-| `color/status/warning`| `#FFB74D` | Tarea bloqueada por IA / advertencias | **10.2:1** (Pasa AAA) |
-| `color/status/error` | `#EF5350` | Errores de validación y red | **5.8:1** (Pasa AA) |
-| `color/status/success`| `#66BB6A` | Tareas completadas | **8.4:1** (Pasa AAA) |
+### Claro
 
----
+- **Fondos:** lienzo `#EEF5F3`, superficie `#FFFFFF`, acento menta `#DDEFE8`.
+- **Texto:** principal `#112D2B`, secundario `#496460`.
+- **Acciones:** verde petróleo `#006A55`, presionado `#005443`, fondo deshabilitado `#DDE9E6`. El botón principal usa texto blanco.
+- **Información:** azul petróleo `#155C73` sobre azul claro `#E2F1F7`.
+- **Espera y bloqueo:** ámbar `#86500E` sobre crema `#FFF0D7`.
+- **Error:** rojo `#A23138` sobre rosa claro `#FCE8EA` o blanco.
 
-## 2. Tipografía y Espaciado
+El texto normal requiere al menos 4,5:1. En los pares principales, el blanco sobre la acción da 6,58:1, el texto secundario sobre menta da 5,37:1 y el ámbar sobre crema da 5,90:1. Complementar el color con texto para prioridad, bloqueo y recuperación.
 
-* **Familia tipográfica:** Roboto (nativo de Android).
-* **Escala:**
-  * `Heading / Large`: 22 sp, Medium (Títulos de vista y resúmenes).
-  * `Heading / Medium`: 18 sp, Medium (Títulos de tarjeta y secciones).
-  * `Body / Regular`: 14 sp, Regular (Detalle, descripciones de tarea e inputs).
-  * `Label / Medium`: 12 sp, Medium (Chips de prioridad, procedencia de pendientes, fechas).
-* **Espaciado y dimensiones mínimas:**
-  * Rejilla base de 8 dp (4 dp, 8 dp, 16 dp, 24 dp).
-  * Altura mínima de objetivo táctil (*touch target*): **48 dp** en botones, campos y filas de selección.
+### Oscuro
 
----
+- El lienzo `#0C1819`, la superficie `#152729` y el acento profundo `#193936` separan los planos sin depender de la sombra.
+- El texto principal usa `#E6F4F0` y el secundario `#A9C5BF`.
+- La acción menta usa `#71DCC0` con texto `#082922`. La acción presionada usa `#4DB79D` con el mismo texto.
+- Los avisos de información usan `#9CD7EE` sobre `#173541`. La espera usa `#FFD293` sobre `#392C1E`. El error usa `#FFB3B5` sobre `#412529` o sobre la superficie.
 
-## 3. Componentes Diseñados en Figma
+Los pares verificados incluyen texto sobre acción (9,40:1), texto secundario sobre tarjeta (8,44:1) y espera (9,59:1).
 
-1. **`Agenda/Button` (Página `01 · Botones`):**
-   * Variantes: `Primary` (fondo verde azulado, texto oscuro), `Secondary` (borde o superficie) y `Ghost`.
-   * Estados: Por defecto, Presionado, Deshabilitado y Carga (*spinner* integrado).
-2. **`Agenda/Input` (Página `02 · Campos`):**
-   * Etiqueta persistente para accesibilidad.
-   * Mensaje de ayuda / error textual (el error nunca depende únicamente del cambio de color del borde).
-3. **`Agenda/Priority` y `Agenda/LevelOption` (Página `03 · Prioridad`):**
-   * Niveles de importancia e impacto: **Alta**, **Media**, **Baja**.
-   * Identificación obligatoria mediante texto visible y no solo color, para garantizar accesibilidad.
-4. **`Agenda/TaskCard` (Página `04 · Tareas`):**
-   * Estados contemplados:
-     * **Pendiente:** Muestra título, proyecto y hora opcional.
-     * **Bloqueada:** Muestra aviso visible de bloqueo por IA (p. ej. *«Bloqueada por Codex»*).
-     * **Arrastrada:** Conserva indicación de procedencia (p. ej. *«Pendiente desde ayer · Sin nueva hora»*).
-     * **Completada:** Marcada con acento y tachado o indicativo sutil.
-5. **Componente de Disponibilidad de IA (`Agenda/AiStatusCard`):**
-   * Indica proveedor (Codex / Gemini), tipo de ventana (Corta o Semanal), hora estimada de recuperación y estado (Esperando / Reanudar).
-6. **Patrones de Estado de Pantalla (Vacío, Error, Carga):**
-   * **Carga (*Loading*):** Indicador de progreso circular verde azulado o esqueletos sutiles sobre `color/bg/surface`.
-   * **Vacío (*Empty*):** Ilustración/icono sobrio con mensaje explicativo y botón de acción principal (p. ej., *"No hay tareas planificadas para hoy. [Planificar día]"*).
-   * **Error (*Error State*):** Mensaje amigable con motivo (sin tecnicismos de base de datos) y botón explícito de *"Reintentar"*.
+## Tipografía y dimensiones
+
+Roboto con los estilos de texto «Agenda Claro». Los tamaños siguientes indican tamaño e interlineado en sp.
+
+- **Pantalla:** 32/38, negrita.
+- **Sección:** 24/30, negrita.
+- **Título de tarjeta:** 16/21, negrita.
+- **Cuerpo:** 14/20, regular.
+- **Etiqueta:** 13/18, media.
+- **Nota breve:** 12/16, media.
+
+Usar la escala de espaciado de 4, 8, 12, 16, 24 y 32 dp. Los controles usan habitualmente 16 dp de radio y las tarjetas destacadas pueden llegar a 26 dp. Cada acción requiere un objetivo táctil de al menos 48 × 48 dp. Las tarjetas deben crecer y el contenido debe poder desplazarse con texto ampliado.
+
+## Componentes y estados
+
+Usar instancias de «Componentes maestros» al extender el prototipo.
+
+- **Botones:** principal, secundario, presionado, foco y deshabilitado. Mantener la etiqueta visible en todos los estados.
+- **Campos:** selección, foco y error. La etiqueta permanece visible y el error explica cómo corregirlo.
+- **Etiquetas y filas:** representar impacto e importancia con texto de tres niveles. Distinguir tarea pendiente, bloqueada, arrastrada y completada.
+- **Recuperaciones de IA:** mostrar herramienta y ventana, indicar el origen manual y distinguir «Hora prevista» de «Hora desconocida».
+- **Selección y navegación:** mostrar días activos y destinos con iconos y texto. El fondo menta marca el destino actual.
+- **Pantallas:** el prototipo incluye un estado de primer uso. Para Android, prever mensajes de error con reintento y retroalimentación durante la carga.
+
+La validación de TalkBack, texto ampliado y objetivos táctiles se realiza en Android.

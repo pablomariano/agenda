@@ -6,7 +6,7 @@ Todas las casillas describen trabajo futuro. Las decisiones técnicas son la pro
 
 - [x] 1.1 Confirmar modelo/versión de Android y nombre de la app; registrar compatibilidad mínima y dispositivo de aceptación en la documentación de desarrollo.
 - [x] 1.2 Crear en Figma los tokens y componentes mínimos del tema oscuro verde azulado; verificar contraste, etiquetas de prioridad y estados vacío/error/carga, entregando enlace al archivo.
-- [x] 1.3 Prototipar Inicio, proyectos/tareas, semana, ideas, disponibilidad de IA y ajustes; verificar con el usuario los cuatro flujos descritos en `design.md` antes de trasladarlos a código.
+- [ ] 1.3 Revisar con el usuario en Figma las pantallas Inicio, proyectos/tareas, semana, ideas, recuperación de IA y ajustes; confirmar los cuatro flujos descritos en `design.md` antes de trasladarlos a código.
 - [x] 1.4 Investigar productos/planes concretos de Codex y Gemini y fuentes autorizadas de límites cortos/semanales; entregar evidencia oficial, datos accesibles, restricciones y decisión de viabilidad por producto. Si procede automatizar, proponer una especificación posterior; no condicionar la versión manual a esa integración.
 
 ## 2. Base Android, API e identidad
