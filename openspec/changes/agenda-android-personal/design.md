@@ -28,9 +28,7 @@ Alternativas: una PWA no satisface la preferencia final de APK nativo; Flutter/R
 
 ### Identidad de la agenda separada de las IA
 
-Propuesta: inicio de sesión con Google mediante Credential Manager y verificación del token de identidad en el backend usando una biblioteca oficial. Validar firma, emisor, audiencia y expiración; autorizar únicamente el identificador estable del propietario configurado. No usar un correo enviado por el cliente como prueba de identidad. Renovar la autenticación cuando expire; cerrar sesión limpia los avisos y datos locales personales. Fuente: [inicio de sesión de Android](https://developer.android.com/identity/sign-in/credential-manager-siwg-implementation).
-
-Esta autorización identifica al usuario de la agenda; NO concede acceso al consumo de Gemini. La alternativa de códigos por correo requiere otro servicio de entrega y no aporta una ventaja para este único usuario Android.
+El propietario entra con un código privado de 32 bytes aleatorios, representados como 64 caracteres hexadecimales. Android lo cifra usando una clave del Keystore y lo envía solo a la API por HTTPS. La API verifica en tiempo constante la huella SHA-256 vigente, guardada en Neon. El identificador de propietario se decide en el servidor y es independiente del código. Sustituir la huella revoca el código anterior en todos los despliegues que comparten esa base y conserva los datos. Cerrar sesión elimina el código guardado y limpia la información de sesión local. Los avisos locales se cancelarán al cerrar sesión cuando estén implementados.
 
 ### Datos mínimos y API
 
@@ -80,7 +78,7 @@ Componentes mínimos: botón, campo, selector de nivel, tarjeta de tarea/proyect
 
 ## Migration Plan
 
-No hay datos ni sistema previo que migrar. Crear esquema inicial y entornos separados de prueba y uso personal. Configurar en Vercel `DATABASE_URL`, audiencia de Google e identificador autorizado; en el APK solo URL de API e identificadores públicos de OAuth. Mantener archivo de ejemplo sin valores privados e ignorar secretos locales y keystore.
+No hay datos ni sistema previo que migrar. Crear esquema inicial y entornos separados de prueba y uso personal. Configurar `DATABASE_URL` en Vercel y generar el código mediante la herramienta local después de aplicar la migración. Compilar el APK personal con la URL pública de la API y entregar el código por separado al propietario. Mantener el archivo de ejemplo sin valores privados e ignorar secretos locales y keystore.
 
 Desplegar API, verificar acceso permitido/denegado y guardar/recuperar datos. Instalar APK firmado, verificar sus notificaciones y luego utilizarlo con datos reales. Aplicar migraciones aditivas; ante fallo volver al despliegue/API y APK compatibles anteriores, conservando datos y usando respaldo antes de cualquier cambio destructivo.
 

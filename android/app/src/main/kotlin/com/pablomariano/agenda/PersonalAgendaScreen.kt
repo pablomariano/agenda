@@ -1,0 +1,343 @@
+package com.pablomariano.agenda
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.dp
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
+private val AgendaTimeZone = ZoneId.of("America/Santiago")
+private val Chile = Locale.forLanguageTag("es-CL")
+private val DateLabel = DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM", Chile)
+
+@Composable
+internal fun PersonalAgendaScreen(model: PersonalAgendaModel) {
+    val draft = model.draft
+    val projectPage = model.page == AgendaPage.PROJECT
+    var selectedTask by remember { mutableStateOf<AgendaTask?>(null) }
+
+    BackHandler(enabled = model.signedIn && (draft != null || projectPage)) {
+        if (draft != null) model.closeForm() else model.navigate(AgendaPage.PROJECTS)
+    }
+    Surface(Modifier.fillMaxSize(), color = AgendaColors.Canvas) {
+        Column(
+            Modifier.safeDrawingPadding().imePadding(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            key(model.signedIn, model.page, draft?.id) {
+                Column(
+                    Modifier.weight(1f).widthIn(max = 520.dp).fillMaxWidth()
+                        .verticalScroll(rememberScrollState()).padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    if (model.busy) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    }
+                    model.error?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                    }
+                    when {
+                        !model.signedIn -> AccessScreen(model)
+                        draft != null -> AgendaForm(model, draft)
+                        model.page == AgendaPage.TODAY -> PersonalToday(model) { selectedTask = it }
+                        model.page == AgendaPage.PROJECTS -> ProjectList(model)
+                        else -> ProjectDetail(model) { selectedTask = it }
+                    }
+                }
+            }
+            if (model.signedIn && draft == null && !projectPage) {
+                TodayNavigation(
+                    modifier = Modifier.widthIn(max = 520.dp).fillMaxWidth()
+                        .padding(start = 20.dp, end = 20.dp, bottom = 8.dp),
+                    activeTab = if (model.page == AgendaPage.TODAY) 0 else 2,
+                    projectsEnabled = true,
+                    onNavigate = { tab ->
+                        model.navigate(if (tab == 0) AgendaPage.TODAY else AgendaPage.PROJECTS)
+                    },
+                )
+            }
+        }
+    }
+
+    selectedTask?.takeIf { model.signedIn }?.let { task ->
+        AlertDialog(
+            onDismissRequest = { selectedTask = null },
+            title = { Text(task.title) },
+            text = {
+                Column(
+                    Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(task.projectTitle)
+                    Text("Impacto ${task.impact.impact.lowercase()} · Pendiente")
+                    Text(if (task.carriedOver) "Pendiente desde ${task.plannedOn}" else "Planificada para hoy")
+                }
+            },
+            confirmButton = { TextButton(onClick = { selectedTask = null }) { Text("Cerrar") } },
+        )
+    }
+}
+
+@Composable
+private fun AccessScreen(model: PersonalAgendaModel) {
+    var code by remember { mutableStateOf("") }
+    PageHeading("Agenda", "Introduce tu código privado para abrir la agenda.")
+    OutlinedTextField(
+        value = code,
+        onValueChange = { code = it },
+        label = { Text("Código de acceso") },
+        modifier = Modifier.fillMaxWidth(),
+        visualTransformation = PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        singleLine = true,
+        enabled = !model.busy,
+    )
+    AgendaAction("Entrar", enabled = !model.busy && code.isNotBlank()) { model.signIn(code) }
+}
+
+@Composable
+private fun PersonalToday(model: PersonalAgendaModel, openTask: (AgendaTask) -> Unit) {
+    val today = LocalDate.now(AgendaTimeZone).format(DateLabel).replaceFirstChar { it.titlecase(Chile) }
+    PageHeading("Hoy", today)
+    val tasks = model.data?.tasks
+    if (tasks != null) {
+        AgendaPanel {
+            Text("Tu plan de hoy", style = MaterialTheme.typography.labelLarge, color = AgendaColors.Action)
+            Text(
+                if (tasks.size == 1) "1 tarea pendiente" else "${tasks.size} tareas pendientes",
+                style = MaterialTheme.typography.headlineSmall,
+            )
+            if (tasks.isEmpty()) {
+                Text("Crea una tarea en un proyecto para verla aquí.", style = MaterialTheme.typography.bodyMedium)
+            }
+            AgendaAction("Ir a Proyectos", enabled = !model.busy) { model.navigate(AgendaPage.PROJECTS) }
+        }
+        if (tasks.isNotEmpty()) {
+            Text("Pendientes de hoy", Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineSmall)
+            TaskRows(tasks, openTask)
+        }
+        Text("Recuperación de IA", Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineSmall)
+        Text("Sin recuperaciones registradas.", color = AgendaColors.Muted, style = MaterialTheme.typography.bodyMedium)
+    }
+    RefreshAction(model)
+    TextButton(onClick = model::signOut, enabled = !model.busy) { Text("Cerrar sesión") }
+}
+
+@Composable
+private fun ProjectList(model: PersonalAgendaModel) {
+    val snapshot = model.data
+    val projects = snapshot?.projects.orEmpty().sortedBy { it.importance.ordinal }
+    PageHeading("Proyectos", if (projects.size == 1) "1 proyecto activo" else "${projects.size} proyectos activos")
+    val first = projects.firstOrNull()
+    if (first != null && snapshot != null) {
+        AgendaPanel {
+            Text("En foco", style = MaterialTheme.typography.labelLarge, color = AgendaColors.Action)
+            Text(first.title, style = MaterialTheme.typography.headlineSmall)
+            Text("Importancia ${first.importance.importance.lowercase()}", style = MaterialTheme.typography.bodyMedium)
+            AgendaAction("Abrir proyecto", !model.busy) { model.navigate(AgendaPage.PROJECT, first.id) }
+        }
+        if (projects.size > 1) Text("Otros proyectos", style = MaterialTheme.typography.headlineSmall)
+        projects.drop(1).forEach { project ->
+            val count = snapshot.tasks.count { it.projectId == project.id }
+            SummaryCard(
+                indicator = project.title.take(2).uppercase(),
+                title = project.title,
+                subtitle = if (count == 1) "1 pendiente para hoy" else "$count pendientes para hoy",
+                caption = "Importancia ${project.importance.importance.lowercase()}",
+                indicatorBackground = AgendaColors.Sky,
+                accent = AgendaColors.Blue,
+                onClick = { model.navigate(AgendaPage.PROJECT, project.id) },
+            )
+        }
+    } else if (snapshot != null) {
+        Text("Crea tu primer proyecto para empezar a organizar tareas.", style = MaterialTheme.typography.bodyMedium)
+    }
+    if (snapshot != null) AgendaAction("Nuevo proyecto", !model.busy) { model.openForm() }
+    RefreshAction(model)
+}
+
+@Composable
+private fun ProjectDetail(model: PersonalAgendaModel, openTask: (AgendaTask) -> Unit) {
+    val project = model.data?.projects?.find { it.id == model.projectId }
+    BackButton(!model.busy) { model.navigate(AgendaPage.PROJECTS) }
+    PageHeading(project?.title ?: "Proyecto", "Tareas pendientes para hoy")
+    if (project != null) {
+        val tasks = model.data?.tasks.orEmpty().filter { it.projectId == project.id }
+        AgendaPanel {
+            Text("Importancia ${project.importance.importance.lowercase()}", color = AgendaColors.Action)
+            Text(if (tasks.size == 1) "1 tarea pendiente" else "${tasks.size} tareas pendientes", style = MaterialTheme.typography.titleMedium)
+            AgendaAction("Nueva tarea", !model.busy) { model.openForm(project.id) }
+        }
+        if (tasks.isNotEmpty()) TaskRows(tasks, openTask)
+    }
+    RefreshAction(model)
+}
+
+@Composable
+private fun TaskRows(tasks: List<AgendaTask>, open: (AgendaTask) -> Unit) {
+    tasks.forEachIndexed { index, task ->
+        SummaryCard(
+            indicator = (index + 1).toString().padStart(2, '0'),
+            title = task.title,
+            subtitle = if (task.carriedOver) "${task.projectTitle} · Pendiente desde ${task.plannedOn}" else task.projectTitle,
+            caption = "Impacto ${task.impact.impact.lowercase()}",
+            indicatorBackground = AgendaColors.Mint,
+            accent = AgendaColors.Action,
+            onClick = { open(task) },
+        )
+    }
+}
+
+@Composable
+private fun AgendaForm(model: PersonalAgendaModel, draft: AgendaDraft) {
+    val isProject = draft.projectId == null
+    val project = model.data?.projects?.find { it.id == draft.projectId }
+    val canEdit = !model.busy && !draft.submitted
+    BackButton(!model.busy, model::closeForm)
+    PageHeading(
+        if (isProject) "Nuevo proyecto" else "Crear tarea",
+        if (isProject) "Dale un nombre y elige su importancia." else "La tarea aparecerá en Hoy.",
+    )
+    if (!isProject) {
+        Surface(shape = RoundedCornerShape(16.dp), color = AgendaColors.Surface) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Text("Proyecto", style = MaterialTheme.typography.labelMedium, color = AgendaColors.Muted)
+                Text(project?.title ?: "Proyecto", style = MaterialTheme.typography.titleMedium)
+            }
+        }
+    }
+    OutlinedTextField(
+        value = draft.title,
+        onValueChange = { if (it.codePointCount(0, it.length) <= 120) model.setTitle(it) },
+        label = { Text(if (isProject) "Nombre" else "Título") },
+        modifier = Modifier.fillMaxWidth(),
+        enabled = canEdit,
+        singleLine = true,
+        shape = RoundedCornerShape(16.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = AgendaColors.Surface,
+            unfocusedContainerColor = AgendaColors.Surface,
+            disabledContainerColor = AgendaColors.Surface,
+        ),
+    )
+    Text(if (isProject) "Importancia" else "Impacto", style = MaterialTheme.typography.titleMedium)
+    Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        AgendaLevel.entries.forEach { level ->
+            val selected = draft.level == level
+            Surface(
+                modifier = Modifier.weight(1f)
+                    .selectable(selected, enabled = canEdit, role = Role.RadioButton) { model.setLevel(level) },
+                shape = RoundedCornerShape(16.dp),
+                color = if (selected) AgendaColors.Action else AgendaColors.Mint,
+            ) {
+                Column(
+                    Modifier.heightIn(min = 48.dp).padding(horizontal = 6.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        if (isProject) level.importance else level.impact,
+                        color = if (selected) AgendaColors.Surface else AgendaColors.Action,
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+            }
+        }
+    }
+    if (draft.submitted && !model.busy) {
+        Text("Reintenta con el mismo envío para evitar duplicados.", style = MaterialTheme.typography.bodyMedium)
+    }
+    AgendaAction(
+        if (draft.submitted) "Reintentar guardado" else if (isProject) "Crear proyecto" else "Crear tarea",
+        enabled = !model.busy && draft.title.isNotBlank(),
+        onClick = model::save,
+    )
+}
+
+@Composable
+private fun PageHeading(title: String, subtitle: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(title, Modifier.semantics { heading() }, style = MaterialTheme.typography.displaySmall)
+        Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = AgendaColors.Muted)
+    }
+}
+
+@Composable
+private fun BackButton(enabled: Boolean, onClick: () -> Unit) {
+    IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(48.dp)) {
+        Image(painterResource(R.drawable.agenda_volver), "Volver")
+    }
+}
+
+@Composable
+private fun AgendaPanel(content: @Composable () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().background(AgendaColors.Mint, RoundedCornerShape(20.dp)).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun AgendaAction(title: String, enabled: Boolean, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Text(title, style = MaterialTheme.typography.labelLarge)
+    }
+}
+
+@Composable
+private fun RefreshAction(model: PersonalAgendaModel) {
+    HorizontalDivider(color = AgendaColors.Mint)
+    TextButton(onClick = model::refresh, enabled = !model.busy) { Text("Actualizar") }
+}

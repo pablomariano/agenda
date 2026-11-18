@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.lightColorScheme
@@ -16,13 +17,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
 class MainActivity : ComponentActivity() {
+    private val agenda by viewModels<PersonalAgendaModel>()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val lightBars = SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.BLACK)
         enableEdgeToEdge(statusBarStyle = lightBars, navigationBarStyle = lightBars)
         setContent {
             MaterialTheme(colorScheme = AgendaColorScheme, typography = AgendaTypography) {
-                TodayScreen()
+                if (BuildConfig.AGENDA_API_URL.isEmpty()) TodayScreen() else PersonalAgendaScreen(agenda)
             }
         }
     }

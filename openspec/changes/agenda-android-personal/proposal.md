@@ -25,7 +25,7 @@ El usuario necesita decidir qué hacer hoy entre varios proyectos, capturar idea
 - `idea-inbox`: captura y conversión de ideas conservando su contenido.
 - `reminders`: programación y acciones de avisos Android y rutinas configurables.
 - `ai-availability`: registro de ventanas de recuperación, estado informativo y avisos por IA.
-- `personal-access`: acceso privado y persistencia en Neon mediante backend en Vercel.
+- `personal-access`: acceso del propietario con código privado de Agenda y persistencia en Neon mediante backend en Vercel.
 - `mobile-experience`: Inicio móvil y componentes visuales accesibles y coherentes.
 
 ### Modified Capabilities

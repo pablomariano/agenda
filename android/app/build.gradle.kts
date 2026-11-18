@@ -1,9 +1,19 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.net.URI
 
 plugins {
     id("com.android.application") version "8.11.1"
     id("org.jetbrains.kotlin.android") version "2.2.21"
     id("org.jetbrains.kotlin.plugin.compose") version "2.2.21"
+}
+
+val agendaApiUrl = providers.gradleProperty("agendaApiUrl").orElse("").get().trim().trimEnd('/')
+if (agendaApiUrl.isNotEmpty()) {
+    val uri = URI(agendaApiUrl)
+    require(uri.scheme == "https" && uri.host != null && uri.rawUserInfo == null &&
+        uri.rawPath.isEmpty() && uri.rawQuery == null && uri.rawFragment == null) {
+        "agendaApiUrl debe ser un origen HTTPS, por ejemplo https://agenda.vercel.app."
+    }
 }
 
 android {
@@ -16,17 +26,19 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        buildConfigField("String", "AGENDA_API_URL", "\"$agendaApiUrl\"")
     }
 
     buildTypes {
         debug {
-            applicationIdSuffix = ".demo"
-            versionNameSuffix = "-demo"
+            applicationIdSuffix = if (agendaApiUrl.isEmpty()) ".demo" else ".preview"
+            versionNameSuffix = if (agendaApiUrl.isEmpty()) "-demo" else "-preview"
         }
     }
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     compileOptions {
@@ -46,4 +58,5 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
+    implementation("androidx.lifecycle:lifecycle-viewmodel:2.9.1")
 }

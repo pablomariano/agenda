@@ -23,7 +23,7 @@ Dado que el dispositivo de aceptación corre Android 14/15, se deben manejar exp
 ## 3. Stack Tecnológico de la Solución
 
 * **Cliente Android:** Kotlin + Jetpack Compose y Material 3 con los tokens del [sistema claro de Agenda](design-system.md).
-* **Autenticación:** Credential Manager con inicio de sesión de Google (OAuth ID Token).
+* **Acceso personal:** Código privado de Agenda. Android lo cifra con el Keystore y la API comprueba su huella en PostgreSQL.
 * **Backend:** Node.js / TypeScript sobre Vercel Serverless Functions.
 * **Base de Datos:** PostgreSQL en Neon (acceso autenticado mediante consultas parametrizadas).
 
@@ -41,3 +41,29 @@ cd android
 El archivo se genera en `app/build/outputs/apk/debug/app-debug.apk`. Se firma con la clave local de depuración y usa el paquete `com.pablomariano.agenda.demo`, separado de la futura app personal.
 
 Para probarlo, transfiere el APK al teléfono y ábrelo. Si Android pide permiso de instalación para la app que abrió el archivo, sigue el aviso del sistema. Luego abre Agenda y toca una prioridad o «Ver avisos».
+
+## 5. Agenda con datos reales
+
+1. Crea una base PostgreSQL en Neon y configura su conexión TLS como `DATABASE_URL` en un archivo local `server/.env.local`. Usa `server/.env.example` como plantilla.
+2. Desde `server/`, instala las dependencias con Node.js 24 y aplica la migración. Genera el código desde tu terminal y guárdalo en tu gestor de contraseñas:
+
+   ```bash
+   npm ci
+   npm run migrate
+   npm run access:generate
+   ```
+
+   Volver a generar el código revoca el anterior. Los proyectos y las tareas siguen siendo del mismo propietario.
+3. En Vercel, usa `server` como directorio raíz del proyecto, el preset **Other**, el runtime **Node.js 24.x** y configura `DATABASE_URL` para la misma base. Tras desplegar, `GET /api/health` debe responder con `status: "ok"` y `configured: true`. Ese resultado indica que Vercel recibió la configuración, y el acceso desde Android comprueba la conexión a la base.
+4. Compila el APK de vista previa con el origen HTTPS de Vercel. Introduce el código en la app tras instalar el APK.
+
+   ```bash
+   cd android
+   ./gradlew :app:assembleDebug -PagendaApiUrl=https://tu-proyecto.vercel.app
+   ```
+
+La compilación conectada de depuración usa `com.pablomariano.agenda.preview`. Para generar la demo, ejecuta el comando sin `agendaApiUrl`. El APK contiene el origen público de la API. La conexión de Neon queda en el servidor y el código se guarda cifrado en el teléfono después de confirmar el acceso.
+
+La compilación de prueba se firma con la clave de depuración de Android. Para distribuir el APK personal definitivo, usa una clave de publicación respaldada fuera del repositorio y conserva la misma clave para las actualizaciones.
+
+En la versión conectada, crea un proyecto en **Proyectos**, abre **Nueva tarea** y guarda. La tarea queda planificada para el día actual en la zona horaria de Santiago y se muestra en **Hoy**. Los reintentos del mismo formulario conservan su identificador. Las comprobaciones del servidor se ejecutan con `npm test`; para la prueba de persistencia configura `TEST_DATABASE_URL` con una base local desechable llamada `agenda_test`.

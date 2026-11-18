@@ -291,7 +291,7 @@ private fun SoftButton(label: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun SummaryCard(
+internal fun SummaryCard(
     indicator: String,
     title: String,
     subtitle: String,
@@ -345,7 +345,12 @@ private val PreviewTabs = listOf(
 )
 
 @Composable
-private fun TodayNavigation(modifier: Modifier = Modifier) {
+internal fun TodayNavigation(
+    modifier: Modifier = Modifier,
+    activeTab: Int = 0,
+    projectsEnabled: Boolean = false,
+    onNavigate: (Int) -> Unit = {},
+) {
     val shape = RoundedCornerShape(24.dp)
     val columns = if (LocalDensity.current.fontScale >= 1.4f) 2 else 4
     Surface(modifier.agendaShadow(shape), shape = shape, color = AgendaColors.Surface) {
@@ -360,7 +365,13 @@ private fun TodayNavigation(modifier: Modifier = Modifier) {
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     tabs.forEach { (label, icon) ->
-                        PreviewTab(label, icon, Modifier.weight(1f))
+                        val index = PreviewTabs.indexOfFirst { it.second == icon }
+                        PreviewTab(
+                            label, icon, Modifier.weight(1f),
+                            active = index == activeTab,
+                            enabled = index == 0 || (index == 2 && projectsEnabled),
+                            onClick = { onNavigate(index) },
+                        )
                     }
                 }
             }
@@ -369,11 +380,17 @@ private fun TodayNavigation(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun PreviewTab(label: String, @DrawableRes icon: Int, modifier: Modifier) {
-    val active = icon == R.drawable.nav_hoy
+private fun PreviewTab(
+    label: String,
+    @DrawableRes icon: Int,
+    modifier: Modifier,
+    active: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
     Column(
         modifier.heightIn(min = 56.dp)
-            .selectable(selected = active, enabled = active, role = Role.Tab, onClick = {}),
+            .selectable(selected = active, enabled = enabled, role = Role.Tab, onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
     ) {

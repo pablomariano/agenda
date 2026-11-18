@@ -12,13 +12,14 @@ Todas las casillas describen trabajo futuro. Las decisiones técnicas son la pro
 ## 2. Base Android, API e identidad
 
 - [ ] 2.1 Crear cliente Kotlin/Compose y API TypeScript en Vercel con dependencias fijadas; verificar compilación de APK de prueba y respuesta del endpoint de salud.
-- [ ] 2.2 Preparar variables de entorno de ejemplo, exclusiones de secretos y guía de configuración de Neon/Vercel/OAuth y firma; verificar que ejemplos no contienen secretos y que el servidor informa configuración ausente sin filtrar valores.
-- [ ] 2.3 Implementar inicio de sesión Google y autorización del propietario en la API; probar tokens ausentes, inválidos, expirados, audiencia incorrecta y cuenta distinta, además del acceso permitido.
+- [x] 2.2 Preparar variables de entorno de ejemplo, exclusiones de secretos y guía de configuración de Neon/Vercel, código de acceso y firma. Comprobar que los ejemplos carecen de secretos y que la API señala configuración ausente sin mostrar valores.
+- [x] 2.3 Implementar acceso con código privado cifrado en Android y autorización del propietario en la API. Comprobar que un código ausente, incorrecto o revocado se rechaza y que el código vigente funciona.
 - [ ] 2.4 Crear migraciones iniciales y acceso a Neon con consultas parametrizadas; verificar aplicación sobre una base vacía, integridad de referencias y lectura/escritura autenticada.
-- [ ] 2.5 Implementar manejo de red, sesión caducada y cierre de sesión; verificar formularios recuperables, ausencia de confirmaciones falsas y limpieza de datos/avisos locales.
+- [ ] 2.5 Implementar manejo de red, acceso revocado y cierre de sesión; verificar formularios recuperables, ausencia de confirmaciones falsas y limpieza de datos/avisos locales.
 
 ## 3. Proyectos, tareas, ideas y semana
 
+- [x] 3.0 Verificar en un emulador con la API y PostgreSQL locales que se pueda crear un proyecto, crear una tarea, verla en Hoy y recuperarla al reabrir la app. Comprobar reintento tras un fallo de conexión.
 - [ ] 3.1 Implementar creación/edición de proyectos y tareas, niveles y estado/bloqueo; verificar persistencia y rechazo de entradas inválidas mediante pruebas de API.
 - [ ] 3.2 Implementar sugerencias y elección/orden manual de prioridades; probar empates, cambio de importancia y conservación del orden elegido.
 - [ ] 3.3 Implementar planificación por día, hora opcional y arrastre derivado; probar medianoche, varios días sin uso, completadas excluidas, bloqueadas visibles y no reutilización de horas vencidas.
