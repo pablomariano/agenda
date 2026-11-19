@@ -5,7 +5,8 @@ try {
   const pool = database();
   try {
     await pool.query(await readFile(new URL("../sql/001_projects_and_tasks.sql", import.meta.url), "utf8"));
-    console.log("Migración de proyectos y tareas aplicada.");
+    await pool.query(await readFile(new URL("../sql/002_task_time.sql", import.meta.url), "utf8"));
+    console.log("Migraciones de agenda aplicadas.");
   } finally {
     await pool.end();
   }

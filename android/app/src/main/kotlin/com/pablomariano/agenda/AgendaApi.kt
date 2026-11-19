@@ -29,11 +29,12 @@ internal data class AgendaTask(
     val impact: AgendaLevel,
     val plannedOn: String,
     val carriedOver: Boolean,
+    val plannedTime: String? = null,
     val completed: Boolean = false,
     val completedToday: Boolean = false,
 )
 
-internal data class AgendaSnapshot(val projects: List<AgendaProject>, val tasks: List<AgendaTask>, val completedTasks: List<AgendaTask>)
+internal data class AgendaSnapshot(val projects: List<AgendaProject>, val tasks: List<AgendaTask>, val completedTasks: List<AgendaTask>, val futureTasks: List<AgendaTask>)
 
 internal class AgendaHttpError(val status: Int) : IOException()
 
@@ -46,6 +47,7 @@ internal class AgendaApi {
             },
             tasks = json.getJSONArray("tasks").objects(::readTask),
             completedTasks = json.optJSONArray("completedTasks")?.objects(::readTask).orEmpty(),
+            futureTasks = json.optJSONArray("futureTasks")?.objects(::readTask).orEmpty(),
         )
     }
 
@@ -56,17 +58,19 @@ internal class AgendaApi {
             .put("title", draft.title.trim())
             .put("level", draft.level.value)
             .put("projectId", draft.projectId)
+        if (draft.projectId != null) body.put("plannedOn", draft.plannedOn).put("plannedTime", draft.plannedTime ?: JSONObject.NULL)
         if (request(code, body).getString("id") != draft.id) {
             throw IOException("El servidor no confirmó la operación.")
         }
     }
 
-    suspend fun update(code: String, original: AgendaTask, title: String, projectId: String, level: AgendaLevel, completed: Boolean) {
-        fun fields(title: String, projectId: String, level: AgendaLevel, completed: Boolean) = JSONObject()
+    suspend fun update(code: String, original: AgendaTask, title: String, projectId: String, level: AgendaLevel, completed: Boolean, plannedOn: String = original.plannedOn, plannedTime: String? = original.plannedTime) {
+        fun fields(title: String, projectId: String, level: AgendaLevel, completed: Boolean, date: String, time: String?) = JSONObject()
             .put("title", title.trim()).put("projectId", projectId).put("impact", level.value).put("completed", completed)
+            .put("plannedOn", date).put("plannedTime", time ?: JSONObject.NULL)
         val body = JSONObject().put("id", original.id)
-            .put("expected", fields(original.title, original.projectId, original.impact, original.completed))
-            .put("task", fields(title, projectId, level, completed))
+            .put("expected", fields(original.title, original.projectId, original.impact, original.completed, original.plannedOn, original.plannedTime))
+            .put("task", fields(title, projectId, level, completed, plannedOn, plannedTime))
         if (request(code, body, "PUT").getString("id") != original.id) {
             throw IOException("El servidor no confirmó la operación.")
         }
@@ -105,5 +109,6 @@ private fun readTask(item: JSONObject) = AgendaTask(
     item.getString("id"), item.getString("title"), item.getString("projectId"),
     item.getString("projectTitle"), AgendaLevel.read(item.getString("impact")),
     item.getString("plannedOn"), item.getBoolean("carriedOver"),
+    if (item.isNull("plannedTime")) null else item.getString("plannedTime"),
     item.optBoolean("completed", false), item.optBoolean("completedToday", false),
 )

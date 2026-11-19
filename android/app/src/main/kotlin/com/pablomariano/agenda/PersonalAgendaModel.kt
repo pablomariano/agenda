@@ -7,6 +7,8 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import java.io.IOException
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.launch
@@ -17,6 +19,8 @@ internal data class AgendaDraft(
     val id: String = UUID.randomUUID().toString(),
     val title: String = "",
     val level: AgendaLevel = AgendaLevel.MEDIUM,
+    val plannedOn: String = LocalDate.now(ZoneId.of("America/Santiago")).toString(),
+    val plannedTime: String? = null,
     val submitted: Boolean = false,
     val original: AgendaTask? = null,
 )
@@ -39,7 +43,7 @@ internal class PersonalAgendaModel(application: Application) : AndroidViewModel(
         private set
     var selectedTaskId: String? by mutableStateOf(null)
         private set
-    val selectedTask: AgendaTask? get() = (data?.tasks.orEmpty() + data?.completedTasks.orEmpty()).find { it.id == selectedTaskId }
+    val selectedTask: AgendaTask? get() = (data?.tasks.orEmpty() + data?.futureTasks.orEmpty() + data?.completedTasks.orEmpty()).find { it.id == selectedTaskId }
     var busy by mutableStateOf(false)
         private set
     var error: String? by mutableStateOf(null)
@@ -107,7 +111,7 @@ internal class PersonalAgendaModel(application: Application) : AndroidViewModel(
     fun editTask() {
         val task = selectedTask ?: return
         if (!busy) {
-            draft = AgendaDraft(projectId = task.projectId, id = task.id, title = task.title, level = task.impact, original = task)
+            draft = AgendaDraft(projectId = task.projectId, id = task.id, title = task.title, level = task.impact, plannedOn = task.plannedOn, plannedTime = task.plannedTime, original = task)
             error = null
         }
     }
@@ -124,6 +128,10 @@ internal class PersonalAgendaModel(application: Application) : AndroidViewModel(
     }
 
     fun setTitle(title: String) = edit { it.copy(title = title) }
+
+    fun setDate(date: String) = edit { it.copy(plannedOn = date, plannedTime = if (it.original?.carriedOver == true && date != it.original.plannedOn) null else it.plannedTime) }
+
+    fun setTime(time: String?) = edit { it.copy(plannedTime = time) }
 
     fun setLevel(level: AgendaLevel) = edit { it.copy(level = level) }
 
@@ -148,7 +156,7 @@ internal class PersonalAgendaModel(application: Application) : AndroidViewModel(
             try {
                 val original = input.original
                 if (original == null) api.create(session, input)
-                else api.update(session, original, input.title, requireNotNull(input.projectId), input.level, original.completed)
+                else api.update(session, original, input.title, requireNotNull(input.projectId), input.level, original.completed, input.plannedOn, input.plannedTime)
             } catch (error: AgendaHttpError) {
                 if (error.status == 400) draft = input.copy(submitted = false)
                 throw error
@@ -160,8 +168,8 @@ internal class PersonalAgendaModel(application: Application) : AndroidViewModel(
                 page = AgendaPage.PROJECT
                 projectId = input.id
             } else {
-                page = AgendaPage.TODAY
-                projectId = null
+                page = AgendaPage.PROJECT
+                projectId = input.projectId
             }
             reloadAfterSave(session)
         }

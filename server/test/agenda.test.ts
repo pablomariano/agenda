@@ -53,6 +53,7 @@ test("acceso, persistencia, orden y reintentos con PostgreSQL", { skip: !testDat
   );
   try {
     await pool.query(await readFile(new URL("../sql/001_projects_and_tasks.sql", import.meta.url), "utf8"));
+    await pool.query(await readFile(new URL("../sql/002_task_time.sql", import.meta.url), "utf8"));
     await setCode(code);
     assert.equal((await GET(request())).status, 401);
     assert.equal((await GET(request("inválido"))).status, 401);
@@ -108,6 +109,37 @@ test("acceso, persistencia, orden y reintentos con PostgreSQL", { skip: !testDat
     assert.ok(withCompleted.completedTasks.some((t: { id: string; completedToday: boolean }) => t.id === task.id && t.completedToday));
     assert.equal((await PUT(patch(code, completed, edited))).status, 200);
     assert.ok((await (await GET(request(code))).json()).tasks.some((t: { id: string }) => t.id === task.id));
+
+    const dates = (await pool.query(`SELECT to_char(timezone('America/Santiago', now())::date - 4, 'YYYY-MM-DD') AS past,
+      to_char(timezone('America/Santiago', now())::date, 'YYYY-MM-DD') AS today,
+      to_char(timezone('America/Santiago', now())::date + 1, 'YYYY-MM-DD') AS tomorrow`)).rows[0];
+    const planned = { ...task, id: randomUUID(), plannedOn: dates.tomorrow, plannedTime: "09:30" };
+    assert.equal((await POST(request(code, { ...planned, plannedOn: "2026-02-30" }))).status, 400);
+    assert.equal((await POST(request(code, { ...planned, plannedTime: "25:00" }))).status, 400);
+    assert.equal((await POST(request(code, planned))).status, 201);
+    assert.equal((await POST(request(code, planned))).status, 201);
+    assert.equal((await POST(request(code, { ...planned, plannedTime: null }))).status, 409);
+    let planSnapshot = await (await GET(request(code))).json();
+    assert.ok(!planSnapshot.tasks.some((t: { id: string }) => t.id === planned.id));
+    assert.ok(planSnapshot.futureTasks.some((t: { id: string; plannedTime: string }) => t.id === planned.id && t.plannedTime === "09:30"));
+    await pool.query("UPDATE agenda_tasks SET planned_on = $1::date WHERE id = $2", [dates.past, planned.id]);
+    planSnapshot = await (await GET(request(code))).json();
+    assert.ok(planSnapshot.tasks.some((t: { id: string; carriedOver: boolean; plannedOn: string }) => t.id === planned.id && t.carriedOver && t.plannedOn === dates.past));
+    const planBefore = { title: planned.title, projectId: planned.projectId, impact: planned.level, completed: false, plannedOn: dates.past, plannedTime: "09:30" };
+    const planAfter = { ...planBefore, plannedOn: dates.today, plannedTime: null };
+    const planRequest = (expected: object, next: object) => new Request(url, {
+      method: "PUT", headers: { authorization: `Bearer ${code}`, "content-type": "application/json" },
+      body: JSON.stringify({ id: planned.id, expected, task: next }),
+    });
+    assert.equal((await PUT(planRequest(planBefore, planAfter))).status, 200);
+    assert.equal((await PUT(planRequest(planBefore, planAfter))).status, 200);
+    assert.equal((await PUT(planRequest(planBefore, { ...planAfter, plannedTime: "11:00" }))).status, 409);
+    planSnapshot = await (await GET(request(code))).json();
+    assert.ok(planSnapshot.tasks.some((t: { id: string; plannedTime: string | null; carriedOver: boolean }) => t.id === planned.id && t.plannedTime === null && !t.carriedOver));
+    const oldClient = { title: planned.title, projectId: planned.projectId, impact: planned.level, completed: false };
+    assert.equal((await PUT(planRequest(oldClient, { ...oldClient, title: "Editada por versión anterior" }))).status, 200);
+    planSnapshot = await (await GET(request(code))).json();
+    assert.ok(planSnapshot.tasks.some((t: { id: string; plannedOn: string; plannedTime: string | null }) => t.id === planned.id && t.plannedOn === dates.today && t.plannedTime === null));
 
     await setCode(otherCode);
     assert.equal((await GET(request(code))).status, 401);

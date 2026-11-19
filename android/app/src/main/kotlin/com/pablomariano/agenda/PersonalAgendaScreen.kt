@@ -1,5 +1,7 @@
 package com.pablomariano.agenda
 
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -38,6 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
@@ -45,6 +48,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import java.time.LocalTime
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -205,6 +209,11 @@ private fun ProjectDetail(model: PersonalAgendaModel, openTask: (AgendaTask) -> 
             AgendaAction("Nueva tarea", !model.busy) { model.openForm(project.id) }
         }
         if (tasks.isNotEmpty()) TaskRows(tasks, openTask)
+        val future = model.data?.futureTasks.orEmpty().filter { it.projectId == project.id }
+        if (future.isNotEmpty()) {
+            Text("Próximas", Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineSmall)
+            TaskRows(future, openTask)
+        }
         val completed = model.data?.completedTasks.orEmpty().filter { it.projectId == project.id }
         if (completed.isNotEmpty()) {
             Text("Completadas", Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineSmall)
@@ -220,7 +229,8 @@ private fun TaskDetail(model: PersonalAgendaModel, task: AgendaTask) {
     PageHeading(task.title, task.projectTitle)
     AgendaPanel {
         Text(if (task.completed) "Completada" else "Pendiente", color = AgendaColors.Action)
-        Text(if (task.completedToday) "Completada hoy" else if (task.completed) "Tarea completada" else if (task.carriedOver) "Pendiente desde ${task.plannedOn}" else "Planificada para hoy", style = MaterialTheme.typography.headlineSmall)
+        Text(if (task.completedToday) "Completada hoy" else if (task.completed) "Tarea completada" else if (task.carriedOver) "Pendiente desde ${task.plannedOn}" else "Planificada para ${task.plannedOn}", style = MaterialTheme.typography.headlineSmall)
+        if (task.plannedTime != null && !task.carriedOver) Text("Hora: ${task.plannedTime}", style = MaterialTheme.typography.bodyMedium)
         Text("Impacto ${task.impact.impact.lowercase()}", style = MaterialTheme.typography.bodyMedium)
     }
     AgendaAction(if (task.completed) "Volver a pendiente" else "Marcar como completada", !model.busy) {
@@ -236,7 +246,7 @@ private fun TaskRows(tasks: List<AgendaTask>, open: (AgendaTask) -> Unit) {
         SummaryCard(
             indicator = if (task.completed) "✓" else (index + 1).toString().padStart(2, '0'),
             title = task.title,
-            subtitle = if (task.carriedOver) "${task.projectTitle} · Pendiente desde ${task.plannedOn}" else task.projectTitle,
+            subtitle = if (task.carriedOver) "${task.projectTitle} · Pendiente desde ${task.plannedOn}" else "${task.projectTitle} · ${task.plannedOn}${task.plannedTime?.let { " · $it" } ?: ""}",
             caption = if (task.completed) "Completada" else "Impacto ${task.impact.impact.lowercase()}",
             indicatorBackground = AgendaColors.Mint,
             accent = AgendaColors.Action,
@@ -253,7 +263,7 @@ private fun AgendaForm(model: PersonalAgendaModel, draft: AgendaDraft) {
     BackButton(!model.busy, model::closeForm)
     PageHeading(
         if (isProject) "Nuevo proyecto" else if (draft.original != null) "Editar tarea" else "Crear tarea",
-        if (isProject) "Dale un nombre y elige su importancia." else if (draft.original != null) "Actualiza los datos de tu tarea." else "La tarea aparecerá en Hoy.",
+        if (isProject) "Dale un nombre y elige su importancia." else if (draft.original != null) "Actualiza los datos de tu tarea." else "Elige el día y, si quieres, una hora.",
     )
     if (!isProject && draft.original != null) {
         Text("Proyecto", style = MaterialTheme.typography.titleMedium)
@@ -315,6 +325,23 @@ private fun AgendaForm(model: PersonalAgendaModel, draft: AgendaDraft) {
                     )
                 }
             }
+        }
+    }
+    if (!isProject) {
+        val context = LocalContext.current
+        val date = LocalDate.parse(draft.plannedOn)
+        Text("Planificación", style = MaterialTheme.typography.titleMedium)
+        TextButton(enabled = canEdit, onClick = {
+            DatePickerDialog(context, { _, year, month, day -> model.setDate(LocalDate.of(year, month + 1, day).toString()) }, date.year, date.monthValue - 1, date.dayOfMonth).show()
+        }) { Text("Día: ${date.format(DateLabel)}") }
+        if (draft.original?.carriedOver == true && draft.plannedOn == draft.original.plannedOn) {
+            Text("La hora anterior ya venció. Cambia el día para asignar una nueva.", style = MaterialTheme.typography.bodyMedium)
+        } else {
+            TextButton(enabled = canEdit, onClick = {
+                val time = draft.plannedTime?.let { LocalTime.parse(it) } ?: LocalTime.of(9, 0)
+                TimePickerDialog(context, { _, hour, minute -> model.setTime("%02d:%02d".format(Locale.ROOT, hour, minute)) }, time.hour, time.minute, true).show()
+            }) { Text("Hora: ${draft.plannedTime ?: "sin hora"}") }
+            if (draft.plannedTime != null) TextButton(enabled = canEdit, onClick = { model.setTime(null) }) { Text("Quitar hora") }
         }
     }
     if (draft.submitted && !model.busy) {
