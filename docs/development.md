@@ -67,3 +67,5 @@ La compilación conectada de depuración usa `com.pablomariano.agenda.preview`. 
 La compilación de prueba se firma con la clave de depuración de Android. Para distribuir el APK personal definitivo, usa una clave de publicación respaldada fuera del repositorio y conserva la misma clave para las actualizaciones.
 
 En la versión conectada, crea un proyecto en **Proyectos**, abre **Nueva tarea** y guarda. La tarea queda planificada para el día actual en la zona horaria de Santiago y se muestra en **Hoy**. Los reintentos del mismo formulario conservan su identificador. Las comprobaciones del servidor se ejecutan con `npm test`; para la prueba de persistencia configura `TEST_DATABASE_URL` con una base local desechable llamada `agenda_test`.
+
+Desde el detalle de una tarea puedes editar título, proyecto e impacto, marcarla completada o devolverla a pendiente. Hoy muestra el avance de las tareas pendientes para hoy y las completadas ese día. Las tareas completadas anteriores se pueden abrir desde su proyecto.

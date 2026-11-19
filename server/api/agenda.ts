@@ -46,6 +46,14 @@ export function GET(request: Request) {
           JOIN agenda_projects p ON p.owner_id = t.owner_id AND p.id = t.project_id
           WHERE t.owner_id = $1 AND t.planned_on <= today.date AND t.completed_at IS NULL),
           '[]'::jsonb) AS tasks
+        , COALESCE((SELECT jsonb_agg(jsonb_build_object('id', t.id, 'title', t.title,
+          'projectId', p.id, 'projectTitle', p.title, 'impact', t.impact,
+          'plannedOn', t.planned_on, 'carriedOver', false, 'completed', true,
+          'completedToday', timezone('America/Santiago', t.completed_at)::date = today.date)
+          ORDER BY t.completed_at DESC, t.id)
+          FROM agenda_tasks t
+          JOIN agenda_projects p ON p.owner_id = t.owner_id AND p.id = t.project_id
+          WHERE t.owner_id = $1 AND t.completed_at IS NOT NULL), '[]'::jsonb) AS "completedTasks"
       FROM (SELECT timezone('America/Santiago', now())::date AS date) today
     `, [owner]);
     return json(agenda);
@@ -97,5 +105,42 @@ export function POST(request: Request) {
       RETURNING id
     `, [owner, id, title, level, projectId]);
     return rowCount ? json({ id }, 201) : failure(409);
+  });
+}
+
+export function PUT(request: Request) {
+  return withOwner(request, async owner => {
+    if (request.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() !== "application/json") return failure(400);
+    let body: Record<string, unknown>;
+    try {
+      const raw = await request.text();
+      if (raw.length > 8_192) return failure(400);
+      const parsed: unknown = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return failure(400);
+      body = parsed as Record<string, unknown>;
+    } catch { return failure(400); }
+
+    const valid = (item: unknown): item is { title: string; projectId: string; impact: string; completed: boolean } => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+      const value = item as Record<string, unknown>;
+      return typeof value.title === "string" && value.title === value.title.trim()
+        && value.title.length > 0 && [...value.title].length <= 120 && !value.title.includes("\u0000")
+        && typeof value.projectId === "string" && uuid.test(value.projectId)
+        && typeof value.impact === "string" && levels.includes(value.impact)
+        && typeof value.completed === "boolean";
+    };
+    if (typeof body.id !== "string" || !uuid.test(body.id) || !valid(body.expected) || !valid(body.task)) return failure(400);
+    const before = body.expected, next = body.task;
+    const { rowCount } = await database().query(`
+      UPDATE agenda_tasks t SET title = $3, project_id = $4, impact = $5,
+        completed_at = CASE WHEN $6::boolean THEN COALESCE(t.completed_at, now()) ELSE NULL END
+      WHERE t.owner_id = $1 AND t.id = $2
+        AND EXISTS (SELECT 1 FROM agenda_projects p WHERE p.owner_id = $1 AND p.id = $4)
+        AND ((t.title = $7 AND t.project_id = $8 AND t.impact = $9 AND (t.completed_at IS NOT NULL) = $10::boolean)
+          OR (t.title = $3 AND t.project_id = $4 AND t.impact = $5 AND (t.completed_at IS NOT NULL) = $6::boolean))
+      RETURNING t.id
+    `, [owner, body.id, next.title, next.projectId, next.impact, next.completed,
+      before.title, before.projectId, before.impact, before.completed]);
+    return rowCount ? json({ id: body.id }) : failure(409);
   });
 }

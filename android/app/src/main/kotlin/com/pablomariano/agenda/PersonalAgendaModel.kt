@@ -18,6 +18,7 @@ internal data class AgendaDraft(
     val title: String = "",
     val level: AgendaLevel = AgendaLevel.MEDIUM,
     val submitted: Boolean = false,
+    val original: AgendaTask? = null,
 )
 
 internal enum class AgendaPage { TODAY, PROJECTS, PROJECT }
@@ -36,6 +37,9 @@ internal class PersonalAgendaModel(application: Application) : AndroidViewModel(
         private set
     var draft: AgendaDraft? by mutableStateOf(null)
         private set
+    var selectedTaskId: String? by mutableStateOf(null)
+        private set
+    val selectedTask: AgendaTask? get() = (data?.tasks.orEmpty() + data?.completedTasks.orEmpty()).find { it.id == selectedTaskId }
     var busy by mutableStateOf(false)
         private set
     var error: String? by mutableStateOf(null)
@@ -72,6 +76,7 @@ internal class PersonalAgendaModel(application: Application) : AndroidViewModel(
         page = AgendaPage.TODAY
         projectId = null
         draft = null
+        selectedTaskId = null
         if (!store.clear()) error = "No pudimos borrar el acceso guardado. Borra los datos de Agenda en Ajustes de Android."
     }
 
@@ -90,6 +95,32 @@ internal class PersonalAgendaModel(application: Application) : AndroidViewModel(
         if (busy || draft != null) return
         error = null
         draft = AgendaDraft(project)
+    }
+
+    fun selectTask(task: AgendaTask?) {
+        if (!busy && draft == null) {
+            selectedTaskId = task?.id
+            error = null
+        }
+    }
+
+    fun editTask() {
+        val task = selectedTask ?: return
+        if (!busy) {
+            draft = AgendaDraft(projectId = task.projectId, id = task.id, title = task.title, level = task.impact, original = task)
+            error = null
+        }
+    }
+
+    fun setProject(project: String) = edit { it.copy(projectId = project) }
+
+    fun setCompleted(completed: Boolean) {
+        val task = selectedTask ?: return
+        val session = code ?: return
+        operation {
+            api.update(session, task, task.title, task.projectId, task.impact, completed)
+            reloadAfterSave(session)
+        }
     }
 
     fun setTitle(title: String) = edit { it.copy(title = title) }
@@ -115,29 +146,37 @@ internal class PersonalAgendaModel(application: Application) : AndroidViewModel(
         draft = input.copy(submitted = true)
         operation {
             try {
-                api.create(session, input)
+                val original = input.original
+                if (original == null) api.create(session, input)
+                else api.update(session, original, input.title, requireNotNull(input.projectId), input.level, original.completed)
             } catch (error: AgendaHttpError) {
                 if (error.status == 400) draft = input.copy(submitted = false)
                 throw error
             }
             draft = null
-            if (input.projectId == null) {
+            if (input.original != null) {
+                selectedTaskId = input.id
+            } else if (input.projectId == null) {
                 page = AgendaPage.PROJECT
                 projectId = input.id
             } else {
                 page = AgendaPage.TODAY
                 projectId = null
             }
-            try {
-                data = api.read(session)
-            } catch (error: AgendaHttpError) {
-                if (error.status == 401) throw error
-                this.error = "Guardado confirmado. Actualiza para ver los cambios."
-            } catch (_: IOException) {
-                error = "Guardado confirmado. Actualiza para ver los cambios."
-            } catch (_: JSONException) {
-                error = "Guardado confirmado. Actualiza para ver los cambios."
-            }
+            reloadAfterSave(session)
+        }
+    }
+
+    private suspend fun reloadAfterSave(session: String) {
+        try {
+            data = api.read(session)
+        } catch (error: AgendaHttpError) {
+            if (error.status == 401) throw error
+            this.error = "Guardado confirmado. Actualiza para ver los cambios."
+        } catch (_: IOException) {
+            error = "Guardado confirmado. Actualiza para ver los cambios."
+        } catch (_: JSONException) {
+            error = "Guardado confirmado. Actualiza para ver los cambios."
         }
     }
 

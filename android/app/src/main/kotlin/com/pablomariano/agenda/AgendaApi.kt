@@ -29,9 +29,11 @@ internal data class AgendaTask(
     val impact: AgendaLevel,
     val plannedOn: String,
     val carriedOver: Boolean,
+    val completed: Boolean = false,
+    val completedToday: Boolean = false,
 )
 
-internal data class AgendaSnapshot(val projects: List<AgendaProject>, val tasks: List<AgendaTask>)
+internal data class AgendaSnapshot(val projects: List<AgendaProject>, val tasks: List<AgendaTask>, val completedTasks: List<AgendaTask>)
 
 internal class AgendaHttpError(val status: Int) : IOException()
 
@@ -42,17 +44,8 @@ internal class AgendaApi {
             projects = json.getJSONArray("projects").objects { item ->
                 AgendaProject(item.getString("id"), item.getString("title"), AgendaLevel.read(item.getString("importance")))
             },
-            tasks = json.getJSONArray("tasks").objects { item ->
-                AgendaTask(
-                    item.getString("id"),
-                    item.getString("title"),
-                    item.getString("projectId"),
-                    item.getString("projectTitle"),
-                    AgendaLevel.read(item.getString("impact")),
-                    item.getString("plannedOn"),
-                    item.getBoolean("carriedOver"),
-                )
-            },
+            tasks = json.getJSONArray("tasks").objects(::readTask),
+            completedTasks = json.optJSONArray("completedTasks")?.objects(::readTask).orEmpty(),
         )
     }
 
@@ -68,7 +61,18 @@ internal class AgendaApi {
         }
     }
 
-    private suspend fun request(code: String, body: JSONObject? = null): JSONObject =
+    suspend fun update(code: String, original: AgendaTask, title: String, projectId: String, level: AgendaLevel, completed: Boolean) {
+        fun fields(title: String, projectId: String, level: AgendaLevel, completed: Boolean) = JSONObject()
+            .put("title", title.trim()).put("projectId", projectId).put("impact", level.value).put("completed", completed)
+        val body = JSONObject().put("id", original.id)
+            .put("expected", fields(original.title, original.projectId, original.impact, original.completed))
+            .put("task", fields(title, projectId, level, completed))
+        if (request(code, body, "PUT").getString("id") != original.id) {
+            throw IOException("El servidor no confirmó la operación.")
+        }
+    }
+
+    private suspend fun request(code: String, body: JSONObject? = null, method: String = "POST"): JSONObject =
         withContext(Dispatchers.IO) {
             val connection = URL("${BuildConfig.AGENDA_API_URL}/api/agenda").openConnection() as HttpsURLConnection
             try {
@@ -79,14 +83,14 @@ internal class AgendaApi {
                 connection.setRequestProperty("Accept", "application/json")
                 if (body != null) {
                     val bytes = body.toString().toByteArray(Charsets.UTF_8)
-                    connection.requestMethod = "POST"
+                    connection.requestMethod = method
                     connection.doOutput = true
                     connection.setRequestProperty("Content-Type", "application/json")
                     connection.setFixedLengthStreamingMode(bytes.size)
                     connection.outputStream.use { it.write(bytes) }
                 }
                 val status = connection.responseCode
-                if (status != if (body == null) 200 else 201) throw AgendaHttpError(status)
+                if (status != if (body == null || method == "PUT") 200 else 201) throw AgendaHttpError(status)
                 connection.inputStream.bufferedReader(Charsets.UTF_8).use { JSONObject(it.readText()) }
             } finally {
                 connection.disconnect()
@@ -96,3 +100,10 @@ internal class AgendaApi {
 
 private fun <T> JSONArray.objects(read: (JSONObject) -> T): List<T> =
     List(length()) { index -> read(getJSONObject(index)) }
+
+private fun readTask(item: JSONObject) = AgendaTask(
+    item.getString("id"), item.getString("title"), item.getString("projectId"),
+    item.getString("projectTitle"), AgendaLevel.read(item.getString("impact")),
+    item.getString("plannedOn"), item.getBoolean("carriedOver"),
+    item.optBoolean("completed", false), item.optBoolean("completedToday", false),
+)

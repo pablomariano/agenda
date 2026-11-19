@@ -2,7 +2,7 @@ import { strict as assert } from "node:assert";
 import { randomBytes, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
-import { GET, POST } from "../api/agenda.js";
+import { GET, POST, PUT } from "../api/agenda.js";
 import { GET as health } from "../api/health.js";
 import { accessHash, ownerId } from "../lib/auth.js";
 import { database } from "../lib/db.js";
@@ -87,6 +87,27 @@ test("acceso, persistencia, orden y reintentos con PostgreSQL", { skip: !testDat
     assert.deepEqual(visible.map((t: { id: string }) => t.id), [urgentTask.id, task.id]);
     assert.equal(visible[1].projectTitle, project.title);
     assert.equal(visible[1].impact, task.level);
+
+    const original = { title: task.title, projectId: task.projectId, impact: task.level, completed: false };
+    const edited = { title: "Propuesta revisada", projectId: urgent.id, impact: "media", completed: false };
+    const patch = (secret: string, expected: object, next: object) => new Request(url, {
+      method: "PUT", headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
+      body: JSON.stringify({ id: task.id, expected, task: next }),
+    });
+    assert.equal((await PUT(patch(otherCode, original, edited))).status, 401);
+    assert.equal((await PUT(patch(code, original, { ...edited, projectId: foreignProject }))).status, 409);
+    assert.equal((await PUT(patch(code, original, { ...edited, title: "" }))).status, 400);
+    assert.equal((await PUT(patch(code, original, edited))).status, 200);
+    assert.equal((await PUT(patch(code, original, edited))).status, 200);
+    assert.equal((await PUT(patch(code, original, { ...edited, title: "Obsoleto" }))).status, 409);
+    const completed = { ...edited, completed: true };
+    assert.equal((await PUT(patch(code, edited, completed))).status, 200);
+    assert.equal((await PUT(patch(code, edited, completed))).status, 200);
+    const withCompleted = await (await GET(request(code))).json();
+    assert.ok(!withCompleted.tasks.some((t: { id: string }) => t.id === task.id));
+    assert.ok(withCompleted.completedTasks.some((t: { id: string; completedToday: boolean }) => t.id === task.id && t.completedToday));
+    assert.equal((await PUT(patch(code, completed, edited))).status, 200);
+    assert.ok((await (await GET(request(code))).json()).tasks.some((t: { id: string }) => t.id === task.id));
 
     await setCode(otherCode);
     assert.equal((await GET(request(code))).status, 401);

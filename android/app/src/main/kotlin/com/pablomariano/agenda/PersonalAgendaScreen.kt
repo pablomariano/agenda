@@ -20,7 +20,6 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
@@ -59,10 +58,12 @@ private val DateLabel = DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM", Chile)
 internal fun PersonalAgendaScreen(model: PersonalAgendaModel) {
     val draft = model.draft
     val projectPage = model.page == AgendaPage.PROJECT
-    var selectedTask by remember { mutableStateOf<AgendaTask?>(null) }
+    val selectedTask = model.selectedTask
 
-    BackHandler(enabled = model.signedIn && (draft != null || projectPage)) {
-        if (draft != null) model.closeForm() else model.navigate(AgendaPage.PROJECTS)
+    BackHandler(enabled = model.signedIn && (draft != null || selectedTask != null || projectPage)) {
+        if (draft != null) model.closeForm()
+        else if (selectedTask != null) model.selectTask(null)
+        else model.navigate(AgendaPage.PROJECTS)
     }
     Surface(Modifier.fillMaxSize(), color = AgendaColors.Canvas) {
         Column(
@@ -84,13 +85,14 @@ internal fun PersonalAgendaScreen(model: PersonalAgendaModel) {
                     when {
                         !model.signedIn -> AccessScreen(model)
                         draft != null -> AgendaForm(model, draft)
-                        model.page == AgendaPage.TODAY -> PersonalToday(model) { selectedTask = it }
+                        selectedTask != null -> TaskDetail(model, selectedTask)
+                        model.page == AgendaPage.TODAY -> PersonalToday(model, model::selectTask)
                         model.page == AgendaPage.PROJECTS -> ProjectList(model)
-                        else -> ProjectDetail(model) { selectedTask = it }
+                        else -> ProjectDetail(model, model::selectTask)
                     }
                 }
             }
-            if (model.signedIn && draft == null && !projectPage) {
+            if (model.signedIn && draft == null && selectedTask == null && !projectPage) {
                 TodayNavigation(
                     modifier = Modifier.widthIn(max = 520.dp).fillMaxWidth()
                         .padding(start = 20.dp, end = 20.dp, bottom = 8.dp),
@@ -104,23 +106,7 @@ internal fun PersonalAgendaScreen(model: PersonalAgendaModel) {
         }
     }
 
-    selectedTask?.takeIf { model.signedIn }?.let { task ->
-        AlertDialog(
-            onDismissRequest = { selectedTask = null },
-            title = { Text(task.title) },
-            text = {
-                Column(
-                    Modifier.verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(task.projectTitle)
-                    Text("Impacto ${task.impact.impact.lowercase()} · Pendiente")
-                    Text(if (task.carriedOver) "Pendiente desde ${task.plannedOn}" else "Planificada para hoy")
-                }
-            },
-            confirmButton = { TextButton(onClick = { selectedTask = null }) { Text("Cerrar") } },
-        )
-    }
+
 }
 
 @Composable
@@ -145,11 +131,12 @@ private fun PersonalToday(model: PersonalAgendaModel, openTask: (AgendaTask) -> 
     val today = LocalDate.now(AgendaTimeZone).format(DateLabel).replaceFirstChar { it.titlecase(Chile) }
     PageHeading("Hoy", today)
     val tasks = model.data?.tasks
+    val completed = model.data?.completedTasks.orEmpty().filter { it.completedToday }
     if (tasks != null) {
         AgendaPanel {
             Text("Tu plan de hoy", style = MaterialTheme.typography.labelLarge, color = AgendaColors.Action)
             Text(
-                if (tasks.size == 1) "1 tarea pendiente" else "${tasks.size} tareas pendientes",
+                "${completed.size} de ${tasks.size + completed.size} tareas completadas",
                 style = MaterialTheme.typography.headlineSmall,
             )
             if (tasks.isEmpty()) {
@@ -160,6 +147,10 @@ private fun PersonalToday(model: PersonalAgendaModel, openTask: (AgendaTask) -> 
         if (tasks.isNotEmpty()) {
             Text("Pendientes de hoy", Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineSmall)
             TaskRows(tasks, openTask)
+        }
+        if (completed.isNotEmpty()) {
+            Text("Completadas hoy", Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineSmall)
+            TaskRows(completed, openTask)
         }
         Text("Recuperación de IA", Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineSmall)
         Text("Sin recuperaciones registradas.", color = AgendaColors.Muted, style = MaterialTheme.typography.bodyMedium)
@@ -214,7 +205,28 @@ private fun ProjectDetail(model: PersonalAgendaModel, openTask: (AgendaTask) -> 
             AgendaAction("Nueva tarea", !model.busy) { model.openForm(project.id) }
         }
         if (tasks.isNotEmpty()) TaskRows(tasks, openTask)
+        val completed = model.data?.completedTasks.orEmpty().filter { it.projectId == project.id }
+        if (completed.isNotEmpty()) {
+            Text("Completadas", Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineSmall)
+            TaskRows(completed, openTask)
+        }
     }
+    RefreshAction(model)
+}
+
+@Composable
+private fun TaskDetail(model: PersonalAgendaModel, task: AgendaTask) {
+    BackButton(!model.busy) { model.selectTask(null) }
+    PageHeading(task.title, task.projectTitle)
+    AgendaPanel {
+        Text(if (task.completed) "Completada" else "Pendiente", color = AgendaColors.Action)
+        Text(if (task.completedToday) "Completada hoy" else if (task.completed) "Tarea completada" else if (task.carriedOver) "Pendiente desde ${task.plannedOn}" else "Planificada para hoy", style = MaterialTheme.typography.headlineSmall)
+        Text("Impacto ${task.impact.impact.lowercase()}", style = MaterialTheme.typography.bodyMedium)
+    }
+    AgendaAction(if (task.completed) "Volver a pendiente" else "Marcar como completada", !model.busy) {
+        model.setCompleted(!task.completed)
+    }
+    AgendaAction("Editar tarea", !model.busy, model::editTask)
     RefreshAction(model)
 }
 
@@ -222,10 +234,10 @@ private fun ProjectDetail(model: PersonalAgendaModel, openTask: (AgendaTask) -> 
 private fun TaskRows(tasks: List<AgendaTask>, open: (AgendaTask) -> Unit) {
     tasks.forEachIndexed { index, task ->
         SummaryCard(
-            indicator = (index + 1).toString().padStart(2, '0'),
+            indicator = if (task.completed) "✓" else (index + 1).toString().padStart(2, '0'),
             title = task.title,
             subtitle = if (task.carriedOver) "${task.projectTitle} · Pendiente desde ${task.plannedOn}" else task.projectTitle,
-            caption = "Impacto ${task.impact.impact.lowercase()}",
+            caption = if (task.completed) "Completada" else "Impacto ${task.impact.impact.lowercase()}",
             indicatorBackground = AgendaColors.Mint,
             accent = AgendaColors.Action,
             onClick = { open(task) },
@@ -240,10 +252,26 @@ private fun AgendaForm(model: PersonalAgendaModel, draft: AgendaDraft) {
     val canEdit = !model.busy && !draft.submitted
     BackButton(!model.busy, model::closeForm)
     PageHeading(
-        if (isProject) "Nuevo proyecto" else "Crear tarea",
-        if (isProject) "Dale un nombre y elige su importancia." else "La tarea aparecerá en Hoy.",
+        if (isProject) "Nuevo proyecto" else if (draft.original != null) "Editar tarea" else "Crear tarea",
+        if (isProject) "Dale un nombre y elige su importancia." else if (draft.original != null) "Actualiza los datos de tu tarea." else "La tarea aparecerá en Hoy.",
     )
-    if (!isProject) {
+    if (!isProject && draft.original != null) {
+        Text("Proyecto", style = MaterialTheme.typography.titleMedium)
+        Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            model.data?.projects.orEmpty().forEach { option ->
+                Surface(
+                    modifier = Modifier.fillMaxWidth().selectable(
+                        selected = option.id == draft.projectId, enabled = canEdit, role = Role.RadioButton,
+                        onClick = { model.setProject(option.id) },
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                    color = if (option.id == draft.projectId) AgendaColors.Mint else AgendaColors.Surface,
+                ) {
+                    Text(option.title, Modifier.heightIn(min = 48.dp).padding(16.dp), style = MaterialTheme.typography.labelLarge)
+                }
+            }
+        }
+    } else if (!isProject) {
         Surface(shape = RoundedCornerShape(16.dp), color = AgendaColors.Surface) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
                 Text("Proyecto", style = MaterialTheme.typography.labelMedium, color = AgendaColors.Muted)
@@ -293,7 +321,7 @@ private fun AgendaForm(model: PersonalAgendaModel, draft: AgendaDraft) {
         Text("Reintenta con el mismo envío para evitar duplicados.", style = MaterialTheme.typography.bodyMedium)
     }
     AgendaAction(
-        if (draft.submitted) "Reintentar guardado" else if (isProject) "Crear proyecto" else "Crear tarea",
+        if (draft.submitted) "Reintentar guardado" else if (isProject) "Crear proyecto" else if (draft.original != null) "Guardar cambios" else "Crear tarea",
         enabled = !model.busy && draft.title.isNotBlank(),
         onClick = model::save,
     )

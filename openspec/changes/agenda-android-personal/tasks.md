@@ -20,6 +20,7 @@ Todas las casillas describen trabajo futuro. Las decisiones técnicas son la pro
 ## 3. Proyectos, tareas, ideas y semana
 
 - [x] 3.0 Verificar en un emulador con la API y PostgreSQL locales que se pueda crear un proyecto, crear una tarea, verla en Hoy y recuperarla al reabrir la app. Comprobar reintento tras un fallo de conexión.
+- [x] 3.0.1 Editar el título, proyecto e impacto de una tarea, completarla y volverla pendiente. Comprobar persistencia, avance diario y reintentos en la API y Android.
 - [ ] 3.1 Implementar creación/edición de proyectos y tareas, niveles y estado/bloqueo; verificar persistencia y rechazo de entradas inválidas mediante pruebas de API.
 - [ ] 3.2 Implementar sugerencias y elección/orden manual de prioridades; probar empates, cambio de importancia y conservación del orden elegido.
 - [ ] 3.3 Implementar planificación por día, hora opcional y arrastre derivado; probar medianoche, varios días sin uso, completadas excluidas, bloqueadas visibles y no reutilización de horas vencidas.
