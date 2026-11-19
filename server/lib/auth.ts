@@ -1,5 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import { database } from "./db.ts";
+import { database } from "./db.js";
 
 export const ownerId = "personal";
 

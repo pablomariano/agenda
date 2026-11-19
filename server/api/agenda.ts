@@ -1,5 +1,5 @@
-import { accessCode, accessStatus, ownerId } from "../lib/auth.ts";
-import { database } from "../lib/db.ts";
+import { accessCode, accessStatus, ownerId } from "../lib/auth.js";
+import { database } from "../lib/db.js";
 
 const levels = ["alta", "media", "baja"];
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

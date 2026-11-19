@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { database } from "./db.ts";
+import { database } from "./db.js";
 
 try {
   const pool = database();

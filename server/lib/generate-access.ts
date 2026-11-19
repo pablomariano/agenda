@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
-import { accessHash, ownerId } from "./auth.ts";
-import { database } from "./db.ts";
+import { accessHash, ownerId } from "./auth.js";
+import { database } from "./db.js";
 
 if (!process.stdout.isTTY) {
   console.error("Ejecuta este comando desde una terminal interactiva.");

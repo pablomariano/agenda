@@ -2,10 +2,10 @@ import { strict as assert } from "node:assert";
 import { randomBytes, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
-import { GET, POST } from "../api/agenda.ts";
-import { GET as health } from "../api/health.ts";
-import { accessHash, ownerId } from "../lib/auth.ts";
-import { database } from "../lib/db.ts";
+import { GET, POST } from "../api/agenda.js";
+import { GET as health } from "../api/health.js";
+import { accessHash, ownerId } from "../lib/auth.js";
+import { database } from "../lib/db.js";
 
 const url = "https://agenda.test/api/agenda";
 const testDatabase = process.env.TEST_DATABASE_URL;
