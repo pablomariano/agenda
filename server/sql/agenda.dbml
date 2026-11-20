@@ -1,0 +1,38 @@
+Project agenda {
+  database_type: 'PostgreSQL'
+  Note: 'Esquema inicial de Agenda. La migración SQL es la fuente de verdad.'
+}
+
+Table agenda_access {
+  owner_id text [pk, note: "Debe ser 'personal'."]
+  token_sha256 bytea [not null, note: 'Huella SHA-256 del código privado, de 32 bytes.']
+}
+
+Table agenda_projects {
+  owner_id text [not null]
+  id uuid [not null]
+  title text [not null, note: 'Entre 1 y 120 caracteres después de quitar espacios.']
+  importance text [not null, note: "Valores: alta, media o baja."]
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (owner_id, id) [pk]
+  }
+}
+
+Table agenda_tasks {
+  owner_id text [not null]
+  id uuid [not null]
+  project_id uuid [not null]
+  title text [not null, note: 'Entre 1 y 120 caracteres después de quitar espacios.']
+  impact text [not null, note: "Valores: alta, media o baja."]
+  planned_on date [not null, default: `(timezone('America/Santiago', now())::date)`]
+  completed_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (owner_id, id) [pk]
+  }
+}
+
+Ref: agenda_tasks.(owner_id, project_id) > agenda_projects.(owner_id, id)
