@@ -30,6 +30,8 @@ internal enum class AgendaPage { TODAY, PROJECTS, PROJECT }
 internal class PersonalAgendaModel(application: Application) : AndroidViewModel(application) {
     private val api = AgendaApi()
     private val store = AccessCodeStore(application)
+    val reminders = TaskReminders(application)
+    private var pendingTaskId: String? = null
 
     private var code: String? by mutableStateOf(null)
     val signedIn: Boolean get() = code != null
@@ -53,7 +55,7 @@ internal class PersonalAgendaModel(application: Application) : AndroidViewModel(
         operation {
             store.read()?.let {
                 code = it
-                data = api.read(it)
+                load(it)
             }
         }
     }
@@ -66,7 +68,7 @@ internal class PersonalAgendaModel(application: Application) : AndroidViewModel(
             return
         }
         operation {
-            data = api.read(entered)
+            load(entered)
             code = entered
             if (!store.write(entered)) {
                 error = "Acceso confirmado. El dispositivo no pudo guardar el código para la próxima vez."
@@ -75,6 +77,7 @@ internal class PersonalAgendaModel(application: Application) : AndroidViewModel(
     }
 
     fun signOut() = operation {
+        reminders.clear()
         code = null
         data = null
         page = AgendaPage.TODAY
@@ -86,7 +89,28 @@ internal class PersonalAgendaModel(application: Application) : AndroidViewModel(
 
     fun refresh() {
         val session = code ?: return
-        operation { data = api.read(session) }
+        operation { load(session) }
+    }
+
+    fun openNotificationTask(id: String) {
+        pendingTaskId = id
+        selectPendingTask()
+    }
+
+    private fun selectPendingTask() {
+        val id = pendingTaskId ?: return
+        if ((data?.tasks.orEmpty() + data?.futureTasks.orEmpty() + data?.completedTasks.orEmpty()).any { it.id == id }) {
+            selectedTaskId = id
+            draft = null
+            pendingTaskId = null
+        }
+    }
+
+    private suspend fun load(session: String) {
+        val snapshot = api.read(session)
+        data = snapshot
+        reminders.reconcile(snapshot)
+        selectPendingTask()
     }
 
     fun navigate(destination: AgendaPage, project: String? = null) {
@@ -123,6 +147,7 @@ internal class PersonalAgendaModel(application: Application) : AndroidViewModel(
         val session = code ?: return
         operation {
             api.update(session, task, task.title, task.projectId, task.impact, completed)
+            reminders.update(task.copy(completed = completed))
             reloadAfterSave(session)
         }
     }
@@ -151,6 +176,10 @@ internal class PersonalAgendaModel(application: Application) : AndroidViewModel(
         val session = code ?: return
         val input = draft ?: return
         if (busy || input.title.isBlank()) return
+        if (input.projectId != null && input.plannedTime != null && reminderInstant(input.plannedOn, input.plannedTime) == null) {
+            error = "Esta hora no es válida o se repite por el cambio horario en Santiago. Elige otra."
+            return
+        }
         draft = input.copy(submitted = true)
         operation {
             try {
@@ -160,6 +189,10 @@ internal class PersonalAgendaModel(application: Application) : AndroidViewModel(
             } catch (error: AgendaHttpError) {
                 if (error.status == 400) draft = input.copy(submitted = false)
                 throw error
+            }
+            if (input.projectId != null) {
+                val task = input.original ?: AgendaTask(input.id, input.title, input.projectId, "", input.level, input.plannedOn, false)
+                reminders.update(task.copy(title = input.title.trim(), projectId = input.projectId, impact = input.level, plannedOn = input.plannedOn, plannedTime = input.plannedTime))
             }
             draft = null
             if (input.original != null) {
@@ -177,7 +210,7 @@ internal class PersonalAgendaModel(application: Application) : AndroidViewModel(
 
     private suspend fun reloadAfterSave(session: String) {
         try {
-            data = api.read(session)
+            load(session)
         } catch (error: AgendaHttpError) {
             if (error.status == 401) throw error
             this.error = "Guardado confirmado. Actualiza para ver los cambios."
@@ -198,6 +231,7 @@ internal class PersonalAgendaModel(application: Application) : AndroidViewModel(
             } catch (http: AgendaHttpError) {
                 error = when (http.status) {
                     401 -> {
+                        reminders.clear()
                         code = null
                         data = null
                         store.clear()

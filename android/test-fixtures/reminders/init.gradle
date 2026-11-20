@@ -1,0 +1,9 @@
+gradle.beforeProject { p ->
+    if (p.path == ':app') {
+        p.pluginManager.withPlugin('com.android.application') {
+            def fixture = new File(p.rootProject.projectDir, 'test-fixtures/reminders')
+            p.android.sourceSets.debug.java.srcDir(new File(fixture, 'src'))
+            p.android.sourceSets.debug.manifest.srcFile(new File(fixture, 'AndroidManifest.xml'))
+        }
+    }
+}

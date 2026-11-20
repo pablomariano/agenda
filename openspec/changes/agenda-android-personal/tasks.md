@@ -37,7 +37,7 @@ Todas las casillas describen trabajo futuro. Las decisiones técnicas son la pro
 
 ## 5. Avisos Android y configuración
 
-- [ ] 5.1 Implementar solicitud/estado de permisos y registro local persistente de alarmas; probar permisos concedidos/denegados y documentar las limitaciones del sistema.
+- [x] 5.1 Implementar solicitud/estado de permisos y registro local persistente de alarmas; probar permisos concedidos/denegados y documentar las limitaciones del sistema.
 - [ ] 5.2 Programar tareas y recuperaciones con identificadores estables; probar edición, cancelación, finalización, reintentos y ausencia de notificaciones duplicadas.
 - [ ] 5.3 Implementar días/horarios configurables de planificación y revisión; probar selección de días, desactivación y reprogramación ante cambios de zona/hora y reinicio.
 - [ ] 5.4 Implementar abrir destino y posponer desde notificación; verificar que no se completa una tarea ni cambia su planificación al posponer y que la sincronización no restaura un aviso anterior.

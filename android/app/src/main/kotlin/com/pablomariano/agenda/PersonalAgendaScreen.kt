@@ -1,5 +1,16 @@
 package com.pablomariano.agenda
 
+import android.Manifest
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import androidx.activity.compose.BackHandler
@@ -30,6 +41,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -131,6 +143,34 @@ private fun AccessScreen(model: PersonalAgendaModel) {
 }
 
 @Composable
+private fun ReminderPermissions(reminders: TaskReminders) {
+    val context = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var version by remember { mutableStateOf(0) }
+    val request = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { version++ }
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) version++ }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    key(version) {
+        if (!reminders.notificationsAllowed()) {
+            Text("Las notificaciones están desactivadas; no recibirás recordatorios.", style = MaterialTheme.typography.bodyMedium)
+            TextButton(onClick = {
+                if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+                    request.launch(Manifest.permission.POST_NOTIFICATIONS)
+                else context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
+            }) { Text("Activar notificaciones") }
+            TextButton(onClick = { context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)) }) { Text("Abrir ajustes de notificaciones") }
+        }
+        if (!reminders.exactAllowed() && Build.VERSION.SDK_INT >= 31) {
+            Text("Android puede retrasar los recordatorios si no permites alarmas exactas.", style = MaterialTheme.typography.bodyMedium)
+            TextButton(onClick = { context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}"))) }) { Text("Permitir alarmas exactas") }
+        }
+    }
+}
+
+@Composable
 private fun PersonalToday(model: PersonalAgendaModel, openTask: (AgendaTask) -> Unit) {
     val today = LocalDate.now(AgendaTimeZone).format(DateLabel).replaceFirstChar { it.titlecase(Chile) }
     PageHeading("Hoy", today)
@@ -159,6 +199,7 @@ private fun PersonalToday(model: PersonalAgendaModel, openTask: (AgendaTask) -> 
         Text("Recuperación de IA", Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineSmall)
         Text("Sin recuperaciones registradas.", color = AgendaColors.Muted, style = MaterialTheme.typography.bodyMedium)
     }
+    ReminderPermissions(model.reminders)
     RefreshAction(model)
     TextButton(onClick = model::signOut, enabled = !model.busy) { Text("Cerrar sesión") }
 }
@@ -232,6 +273,14 @@ private fun TaskDetail(model: PersonalAgendaModel, task: AgendaTask) {
         Text(if (task.completedToday) "Completada hoy" else if (task.completed) "Tarea completada" else if (task.carriedOver) "Pendiente desde ${task.plannedOn}" else "Planificada para ${task.plannedOn}", style = MaterialTheme.typography.headlineSmall)
         if (task.plannedTime != null && !task.carriedOver) Text("Hora: ${task.plannedTime}", style = MaterialTheme.typography.bodyMedium)
         Text("Impacto ${task.impact.impact.lowercase()}", style = MaterialTheme.typography.bodyMedium)
+    }
+    if (!task.completed && task.plannedTime != null && !task.carriedOver) {
+        var enabled by remember(task.id) { mutableStateOf(model.reminders.enabled(task.id)) }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Recordatorio", modifier = Modifier.weight(1f))
+            Switch(checked = enabled, onCheckedChange = { enabled = it; model.reminders.setEnabled(task.id, it) }, enabled = !model.busy)
+        }
+        Text("Zona horaria: America/Santiago", style = MaterialTheme.typography.bodyMedium)
     }
     AgendaAction(if (task.completed) "Volver a pendiente" else "Marcar como completada", !model.busy) {
         model.setCompleted(!task.completed)
