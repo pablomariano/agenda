@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "skills": {
+    "figma-to-compose": {
+      "source": "nguyenbahung94/FigmaToCompose",
+      "commit": "8d2a159282958da25822c72f870aa46ba34fb5db",
+      "sourceType": "github",
+      "skillPath": "skills/figma-to-compose/SKILL.md",
+      "computedHash": "ef5bac6ebebd233b4bffb964a7b6e6cf6190fabd4e7404bde088dd525d9b8863"
+    },
+    "modern-jetpack-compose": {
+      "source": "anhvt52/jetpack-compose-skills",
+      "commit": "6d86fdc95d2b7ffcbd48d4c1c628a1c69f781648",
+      "sourceType": "github",
+      "skillPath": "modern-jetpack-compose/SKILL.md",
+      "computedHash": "f7d4d378dff23771af16ecdd6ffb307a14676acbd35bfcc1f52becf39bedc2ff"
+    }
+  }
+}
