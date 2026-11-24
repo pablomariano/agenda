@@ -6,6 +6,11 @@ try {
   try {
     await pool.query(await readFile(new URL("../sql/001_projects_and_tasks.sql", import.meta.url), "utf8"));
     await pool.query(await readFile(new URL("../sql/002_task_time.sql", import.meta.url), "utf8"));
+    await pool.query(await readFile(new URL("../sql/003_ai_recoveries.sql", import.meta.url), "utf8"));
+    await pool.query(await readFile(new URL("../sql/004_task_blocking.sql", import.meta.url), "utf8"));
+    await pool.query(await readFile(new URL("../sql/005_daily_priorities.sql", import.meta.url), "utf8"));
+    await pool.query(await readFile(new URL("../sql/006_weekly_goals.sql", import.meta.url), "utf8"));
+    await pool.query(await readFile(new URL("../sql/007_ideas.sql", import.meta.url), "utf8"));
     console.log("Migraciones de agenda aplicadas.");
   } finally {
     await pool.end();

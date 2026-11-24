@@ -16,6 +16,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.Instant
 import java.util.UUID
 import org.json.JSONObject
 
@@ -29,6 +30,7 @@ internal fun reminderInstant(date: String, time: String): Long? {
 
 internal class TaskReminders(private val context: Context) {
     private val prefs = context.getSharedPreferences("task_reminders", Context.MODE_PRIVATE)
+    private val aiPrefs = context.getSharedPreferences("ai_reminders", Context.MODE_PRIVATE)
     private val tokenPrefs = context.getSharedPreferences("reminder_intents", Context.MODE_PRIVATE)
     private val token: String = tokenPrefs.getString("token", null) ?: UUID.randomUUID().toString().also {
         tokenPrefs.edit().putString("token", it).commit()
@@ -42,19 +44,19 @@ internal class TaskReminders(private val context: Context) {
         (Build.VERSION.SDK_INT < 33 || context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)
     fun exactAllowed() = Build.VERSION.SDK_INT < 31 || alarms.canScheduleExactAlarms()
 
-    private fun alarmIntent(id: String): PendingIntent = PendingIntent.getBroadcast(context, 0,
-        Intent(context, TaskReminderReceiver::class.java).setData(Uri.parse("agenda://reminder/$id")),
+    private fun alarmIntent(id: String, ai: Boolean = false): PendingIntent = PendingIntent.getBroadcast(context, 0,
+        Intent(context, TaskReminderReceiver::class.java).setData(Uri.parse("agenda://${if (ai) "ai" else "reminder"}/$id")),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
-    private fun schedule(id: String, record: JSONObject) {
+    private fun schedule(id: String, record: JSONObject, ai: Boolean = false) {
         val whenMs = record.optLong("due")
-        alarms.cancel(alarmIntent(id))
+        alarms.cancel(alarmIntent(id, ai))
         if (!record.optBoolean("enabled", true) || record.optBoolean("fired") || whenMs <= System.currentTimeMillis()) return
         try {
-            if (exactAllowed()) alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, whenMs, alarmIntent(id))
-            else alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, whenMs, alarmIntent(id))
+            if (exactAllowed()) alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, whenMs, alarmIntent(id, ai))
+            else alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, whenMs, alarmIntent(id, ai))
         } catch (_: SecurityException) {
-            alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, whenMs, alarmIntent(id))
+            alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, whenMs, alarmIntent(id, ai))
         }
     }
 
@@ -95,14 +97,66 @@ internal class TaskReminders(private val context: Context) {
         return true
     }
 
+    fun quickSnooze(id: String, minutes: Int) {
+        val record = read(id) ?: return
+        if (!record.optBoolean("enabled", true) || !record.optBoolean("fired")) return
+        snooze(id, System.currentTimeMillis() + minutes * 60_000L)
+    }
+
     fun remove(id: String) {
         alarms.cancel(alarmIntent(id))
         notifications.cancel(id, 0)
         prefs.edit().remove(id).apply()
     }
 
-    fun clear() { prefs.all.keys.forEach(::remove) }
-    fun restore() { prefs.all.keys.forEach { id -> read(id)?.let { schedule(id, it) } } }
+    fun reconcileAi(recoveries: List<AiRecovery>) {
+        val active = recoveries.filterNot { it.cancelled }
+        val ids = active.map { it.id }.toSet()
+        aiPrefs.all.keys.filter { it !in ids }.forEach { id ->
+            alarms.cancel(alarmIntent(id, true))
+            notifications.cancel("ai:$id", 0)
+            aiPrefs.edit().remove(id).apply()
+        }
+        active.forEach { recovery ->
+            val old = aiPrefs.getString(recovery.id, null)?.let { JSONObject(it) }
+            if (old != null && old.optString("plan") != recovery.expectedAt) notifications.cancel("ai:${recovery.id}", 0)
+            val record = if (old?.optString("plan") == recovery.expectedAt) old else JSONObject()
+                .put("plan", recovery.expectedAt).put("due", Instant.parse(recovery.expectedAt).toEpochMilli())
+                .put("fired", false)
+            record.put("provider", recovery.provider).put("window", recovery.window)
+            aiPrefs.edit().putString(recovery.id, record.toString()).commit()
+            schedule(recovery.id, record, true)
+        }
+    }
+
+    fun fireAi(id: String) {
+        val record = aiPrefs.getString(id, null)?.let { JSONObject(it) } ?: return
+        if (record.optBoolean("fired") || record.optLong("due") > System.currentTimeMillis() + 1_000) return
+        record.put("fired", true)
+        aiPrefs.edit().putString(id, record.toString()).commit()
+        if (!notifications.areNotificationsEnabled() ||
+            (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)) return
+        notifications.createNotificationChannel(NotificationChannel("ai", "Recuperaciones de IA", NotificationManager.IMPORTANCE_DEFAULT))
+        val destination = PendingIntent.getActivity(context, 0,
+            Intent(context, MainActivity::class.java).setAction("open_ai").setData(Uri.parse("agenda://ai/$id"))
+                .putExtra("reminder_token", token).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val provider = if (record.optString("provider") == "codex") "Codex" else "Gemini"
+        notifications.notify("ai:$id", 0, Notification.Builder(context, "ai")
+            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setContentTitle("Hora prevista de $provider")
+            .setContentText("Ya puedes revisar si vuelve a estar disponible.")
+            .setContentIntent(destination).setAutoCancel(true).build())
+    }
+
+    fun clear() {
+        prefs.all.keys.forEach(::remove)
+        reconcileAi(emptyList())
+    }
+    fun restore() {
+        prefs.all.keys.forEach { id -> read(id)?.let { schedule(id, it) } }
+        aiPrefs.all.keys.forEach { id -> aiPrefs.getString(id, null)?.let { schedule(id, JSONObject(it), true) } }
+    }
     private fun read(id: String): JSONObject? = prefs.getString(id, null)?.let { runCatching { JSONObject(it) }.getOrNull() }
     private fun save(id: String, record: JSONObject) { prefs.edit().putString(id, record.toString()).commit(); schedule(id, record) }
 
@@ -118,12 +172,18 @@ internal class TaskReminders(private val context: Context) {
                 .putExtra("reminder_token", token)
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        fun quickSnooze(minutes: Int) = PendingIntent.getBroadcast(context, 0,
+            Intent(context, TaskReminderReceiver::class.java).setAction("snooze_$minutes")
+                .setData(Uri.parse("agenda://reminder/$id")).putExtra("reminder_token", token),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val notification = Notification.Builder(context, "tasks")
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
             .setContentTitle("Recordatorio de tarea")
             .setContentText(record.optString("title"))
             .setContentIntent(activity("open"))
-            .addAction(Notification.Action.Builder(null, "Posponer", activity("snooze")).build())
+            .addAction(Notification.Action.Builder(null, "10 minutos", quickSnooze(10)).build())
+            .addAction(Notification.Action.Builder(null, "20 minutos", quickSnooze(20)).build())
+            .addAction(Notification.Action.Builder(null, "Otra hora", activity("snooze")).build())
             .setAutoCancel(true).build()
         notifications.notify(id, 0, notification)
     }
@@ -135,7 +195,14 @@ class TaskReminderReceiver : BroadcastReceiver() {
         when (intent.action) {
             Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_TIME_CHANGED, Intent.ACTION_TIMEZONE_CHANGED,
             Intent.ACTION_MY_PACKAGE_REPLACED, AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED -> reminders.restore()
-            else -> intent.data?.lastPathSegment?.let(reminders::fire)
+            "snooze_10", "snooze_20" -> {
+                if (!reminders.accepts(intent)) return
+                val minutes = if (intent.action == "snooze_10") 10 else 20
+                intent.data?.lastPathSegment?.let { reminders.quickSnooze(it, minutes) }
+            }
+            else -> intent.data?.lastPathSegment?.let { id ->
+                if (intent.data?.host == "ai") reminders.fireAi(id) else reminders.fire(id)
+            }
         }
     }
 }

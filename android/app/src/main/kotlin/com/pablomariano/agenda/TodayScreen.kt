@@ -200,8 +200,17 @@ internal fun TodayScreen() {
 }
 
 @Composable
-private fun TodaySummary(completed: Int, total: Int, openPriorities: () -> Unit) {
-    val progress = completed.toFloat() / total
+internal fun TodaySummary(
+    completed: Int,
+    total: Int,
+    actionLabel: String = "Planificar hoy",
+    completedLabel: String = "prioridades completadas",
+    emptyTitle: String = "Sin tareas para hoy",
+    emptyMessage: String = "Crea una tarea en un proyecto para empezar.",
+    actionEnabled: Boolean = true,
+    openPriorities: () -> Unit,
+) {
+    val progress = if (total > 0) completed.toFloat() / total else 0f
     val typography = MaterialTheme.typography
     Box(
         Modifier
@@ -222,20 +231,25 @@ private fun TodaySummary(completed: Int, total: Int, openPriorities: () -> Unit)
             verticalArrangement = Arrangement.spacedBy(5.dp),
         ) {
             Text("TU PLAN DE HOY", style = typography.labelMedium, color = Color.White)
-            Text("$completed de $total", style = typography.displaySmall, color = Color.White)
-            Text("prioridades completadas", style = typography.bodyMedium, color = Color.White)
-            Box(
-                Modifier
-                    .widthIn(max = 145.dp)
-                    .fillMaxWidth()
-                    .height(7.dp)
-                    .clip(CircleShape)
-                    .background(AgendaColors.Blue)
-                    .semantics { progressBarRangeInfo = ProgressBarRangeInfo(progress, 0f..1f) },
-            ) {
-                Box(Modifier.fillMaxWidth(progress).height(7.dp).background(Color.White, CircleShape))
+            if (total > 0) {
+                Text("$completed de $total", style = typography.displaySmall, color = Color.White)
+                Text(completedLabel, style = typography.bodyMedium, color = Color.White)
+                Box(
+                    Modifier
+                        .widthIn(max = 145.dp)
+                        .fillMaxWidth()
+                        .height(7.dp)
+                        .clip(CircleShape)
+                        .background(AgendaColors.Blue)
+                        .semantics { progressBarRangeInfo = ProgressBarRangeInfo(progress, 0f..1f) },
+                ) {
+                    Box(Modifier.fillMaxWidth(progress).height(7.dp).background(Color.White, CircleShape))
+                }
+            } else {
+                Text(emptyTitle, style = typography.headlineSmall, color = Color.White)
+                Text(emptyMessage, style = typography.bodyMedium, color = Color.White)
             }
-            SoftButton("Planificar hoy", openPriorities)
+            SoftButton(actionLabel, openPriorities, enabled = actionEnabled)
         }
     }
 }
@@ -275,9 +289,10 @@ private fun SectionTitle(title: String, action: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun SoftButton(label: String, onClick: () -> Unit) {
+private fun SoftButton(label: String, onClick: () -> Unit, enabled: Boolean = true) {
     Button(
         onClick = onClick,
+        enabled = enabled,
         modifier = Modifier.heightIn(min = 48.dp),
         shape = RoundedCornerShape(16.dp),
         colors = ButtonDefaults.buttonColors(
@@ -349,6 +364,8 @@ internal fun TodayNavigation(
     modifier: Modifier = Modifier,
     activeTab: Int = 0,
     projectsEnabled: Boolean = false,
+    weekEnabled: Boolean = false,
+    ideasEnabled: Boolean = false,
     onNavigate: (Int) -> Unit = {},
 ) {
     val shape = RoundedCornerShape(24.dp)
@@ -369,7 +386,7 @@ internal fun TodayNavigation(
                         PreviewTab(
                             label, icon, Modifier.weight(1f),
                             active = index == activeTab,
-                            enabled = index == 0 || (index == 2 && projectsEnabled),
+                            enabled = index == 0 || (index == 1 && weekEnabled) || (index == 2 && projectsEnabled) || (index == 3 && ideasEnabled),
                             onClick = { onNavigate(index) },
                         )
                     }

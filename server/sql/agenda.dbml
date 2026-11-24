@@ -13,6 +13,7 @@ Table agenda_projects {
   id uuid [not null]
   title text [not null, note: 'Entre 1 y 120 caracteres después de quitar espacios.']
   importance text [not null, note: "Valores: alta, media o baja."]
+  description text [not null, default: '', note: 'Texto original cuando procede de una idea.']
   created_at timestamptz [not null, default: `now()`]
 
   indexes {
@@ -26,7 +27,9 @@ Table agenda_tasks {
   project_id uuid [not null]
   title text [not null, note: 'Entre 1 y 120 caracteres después de quitar espacios.']
   impact text [not null, note: "Valores: alta, media o baja."]
+  description text [not null, default: '', note: 'Texto original cuando procede de una idea.']
   planned_on date [not null, default: `(timezone('America/Santiago', now())::date)`]
+  blocked_by text [note: 'codex o gemini; null indica sin bloqueo']
   completed_at timestamptz
   created_at timestamptz [not null, default: `now()`]
 
@@ -36,3 +39,75 @@ Table agenda_tasks {
 }
 
 Ref: agenda_tasks.(owner_id, project_id) > agenda_projects.(owner_id, id)
+
+Table agenda_ai_recoveries {
+  owner_id text [not null]
+  id uuid [not null]
+  provider text [not null, note: 'codex o gemini']
+  window_kind text [not null, note: 'short o weekly']
+  expected_at timestamptz [not null, note: 'Hora prevista introducida manualmente']
+  decision text [not null, note: 'wait o continue']
+  alternative text [note: 'Herramienta alternativa, cuando se continúa']
+  task_id uuid
+  cancelled boolean [not null, default: false]
+  created_at timestamptz [not null, default: `now()`]
+  version integer [not null, default: 1]
+
+  indexes {
+    (owner_id, id) [pk]
+  }
+}
+
+Ref: agenda_ai_recoveries.(owner_id, task_id) > agenda_tasks.(owner_id, id)
+
+Table agenda_priority_days {
+  owner_id text [not null]
+  day date [not null]
+  version integer [not null, default: 0]
+
+  indexes {
+    (owner_id, day) [pk]
+  }
+}
+
+Table agenda_daily_priorities {
+  owner_id text [not null]
+  day date [not null]
+  task_id uuid [not null]
+  position integer [not null, note: 'Orden elegido por el usuario']
+
+  indexes {
+    (owner_id, day, task_id) [pk]
+    (owner_id, day, position) [unique]
+  }
+}
+
+Ref: agenda_daily_priorities.(owner_id, day) > agenda_priority_days.(owner_id, day)
+Ref: agenda_daily_priorities.(owner_id, task_id) > agenda_tasks.(owner_id, id)
+
+Table agenda_weekly_goals {
+  owner_id text [not null]
+  id uuid [not null]
+  week_start date [not null, note: 'Lunes de la semana']
+  title text [not null]
+  version integer [not null, default: 1]
+  created_at timestamptz [not null]
+
+  indexes {
+    (owner_id, id) [pk]
+    (owner_id, week_start, created_at, id)
+  }
+}
+
+Table agenda_ideas {
+  owner_id text [not null]
+  id uuid [not null]
+  content text [not null]
+  created_at timestamptz [not null]
+  converted_project_id uuid
+  converted_task_id uuid
+  conversion_request jsonb
+  indexes { (owner_id, id) [pk] }
+}
+Ref: agenda_ideas.(owner_id, converted_project_id) > agenda_projects.(owner_id, id)
+Ref: agenda_ideas.(owner_id, converted_task_id) > agenda_tasks.(owner_id, id)

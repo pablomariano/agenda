@@ -16,6 +16,10 @@ La aplicación SHALL permitir configurar, modificar y desactivar recordatorios d
 ### Requirement: Acciones desde notificaciones
 Las notificaciones de tarea SHALL ofrecer abrir la tarea y posponer el aviso a una nueva hora elegida. Completar una tarea SHALL realizarse dentro de la agenda; posponer SHALL NOT modificar su fecha planificada ni su estado.
 
+#### Scenario: Posponer rápidamente
+- **WHEN** el usuario elige 10 o 20 minutos en la notificación de una tarea
+- **THEN** el aviso se vuelve a programar para ese intervalo desde la elección, sin cambiar la fecha, la hora ni el estado de la tarea. La opción de elegir otra hora sigue disponible.
+
 #### Scenario: Posponer
 - **WHEN** el usuario pospone un aviso
 - **THEN** se reemplaza su siguiente ocurrencia y la tarea permanece pendiente con su planificación original.

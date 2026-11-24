@@ -49,6 +49,11 @@ class MainActivity : ComponentActivity() {
 
     private fun handleReminder(intent: Intent?) {
         val id = intent?.data?.lastPathSegment ?: return
+        if (intent.action == "open_ai" && agenda.reminders.accepts(intent)) {
+            agenda.openRecoveryNotification()
+            intent.data = null
+            return
+        }
         if ((intent.action != "open" && intent.action != "snooze") || !agenda.reminders.accepts(intent)) return
         agenda.openNotificationTask(id)
         if (intent.action == "snooze") {

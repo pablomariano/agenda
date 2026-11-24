@@ -45,11 +45,11 @@ export function GET(request: Request) {
     const { rows: [agenda] } = await database().query(`
       SELECT
         COALESCE((SELECT jsonb_agg(jsonb_build_object('id', id, 'title', title,
-          'importance', importance) ORDER BY created_at, id)
+          'importance', importance, 'description', description) ORDER BY created_at, id)
           FROM agenda_projects WHERE owner_id = $1), '[]'::jsonb) AS projects,
         COALESCE((SELECT jsonb_agg(jsonb_build_object('id', t.id, 'title', t.title,
-          'projectId', p.id, 'projectTitle', p.title, 'impact', t.impact,
-          'plannedOn', t.planned_on, 'plannedTime', to_char(t.planned_time, 'HH24:MI'), 'carriedOver', t.planned_on < today.date)
+          'projectId', p.id, 'projectTitle', p.title, 'impact', t.impact, 'description', t.description,
+          'plannedOn', t.planned_on, 'plannedTime', to_char(t.planned_time, 'HH24:MI'), 'carriedOver', t.planned_on < today.date, 'blockedBy', t.blocked_by)
           ORDER BY array_position(ARRAY['alta','media','baja'], p.importance),
             array_position(ARRAY['alta','media','baja'], t.impact), t.created_at, t.id)
           FROM agenda_tasks t
@@ -57,15 +57,15 @@ export function GET(request: Request) {
           WHERE t.owner_id = $1 AND t.planned_on <= today.date AND t.completed_at IS NULL),
           '[]'::jsonb) AS tasks
         , COALESCE((SELECT jsonb_agg(jsonb_build_object('id', t.id, 'title', t.title,
-          'projectId', p.id, 'projectTitle', p.title, 'impact', t.impact,
-          'plannedOn', t.planned_on, 'plannedTime', to_char(t.planned_time, 'HH24:MI'), 'carriedOver', false)
+          'projectId', p.id, 'projectTitle', p.title, 'impact', t.impact, 'description', t.description,
+          'plannedOn', t.planned_on, 'plannedTime', to_char(t.planned_time, 'HH24:MI'), 'carriedOver', false, 'blockedBy', t.blocked_by)
           ORDER BY t.planned_on, t.planned_time NULLS LAST, t.created_at, t.id)
           FROM agenda_tasks t JOIN agenda_projects p ON p.owner_id = t.owner_id AND p.id = t.project_id
           WHERE t.owner_id = $1 AND t.planned_on > today.date AND t.completed_at IS NULL), '[]'::jsonb) AS "futureTasks"
         , COALESCE((SELECT jsonb_agg(jsonb_build_object('id', t.id, 'title', t.title,
-          'projectId', p.id, 'projectTitle', p.title, 'impact', t.impact,
+          'projectId', p.id, 'projectTitle', p.title, 'impact', t.impact, 'description', t.description,
           'plannedOn', t.planned_on, 'plannedTime', to_char(t.planned_time, 'HH24:MI'), 'carriedOver', false, 'completed', true,
-          'completedToday', timezone('America/Santiago', t.completed_at)::date = today.date)
+          'completedToday', timezone('America/Santiago', t.completed_at)::date = today.date, 'blockedBy', t.blocked_by)
           ORDER BY t.completed_at DESC, t.id)
           FROM agenda_tasks t
           JOIN agenda_projects p ON p.owner_id = t.owner_id AND p.id = t.project_id
@@ -139,6 +139,22 @@ export function PUT(request: Request) {
       body = parsed as Record<string, unknown>;
     } catch { return failure(400); }
 
+    if (body.kind === "project") {
+      const validProject = (item: unknown): item is { title: string; importance: string } => {
+        if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+        const value = item as Record<string, unknown>;
+        return typeof value.title === "string" && value.title === value.title.trim()
+          && value.title.length > 0 && [...value.title].length <= 120 && !value.title.includes("\u0000")
+          && typeof value.importance === "string" && levels.includes(value.importance);
+      };
+      if (typeof body.id !== "string" || !uuid.test(body.id) || !validProject(body.expected) || !validProject(body.project)) return failure(400);
+      const before = body.expected, next = body.project;
+      const { rowCount } = await database().query(`UPDATE agenda_projects SET title=$3, importance=$4
+        WHERE owner_id=$1 AND id=$2 AND ((title=$5 AND importance=$6) OR (title=$3 AND importance=$4)) RETURNING id`,
+      [owner, body.id, next.title, next.importance, before.title, before.importance]);
+      return rowCount ? json({ id: body.id }) : failure(409);
+    }
+
     const valid = (item: unknown): item is { title: string; projectId: string; impact: string; completed: boolean } => {
       if (!item || typeof item !== "object" || Array.isArray(item)) return false;
       const value = item as Record<string, unknown>;
@@ -154,18 +170,24 @@ export function PUT(request: Request) {
     const nextPlan = body.task as typeof next & { plannedOn?: unknown; plannedTime?: unknown };
     const hasPlan = beforePlan.plannedOn !== undefined || beforePlan.plannedTime !== undefined || nextPlan.plannedOn !== undefined || nextPlan.plannedTime !== undefined;
     if (hasPlan && (!validDate(beforePlan.plannedOn) || !validTime(beforePlan.plannedTime) || !validDate(nextPlan.plannedOn) || !validTime(nextPlan.plannedTime))) return failure(400);
+    const beforeBlock = (body.expected as Record<string, unknown>).blockedBy;
+    const nextBlock = (body.task as Record<string, unknown>).blockedBy;
+    const hasBlock = beforeBlock !== undefined || nextBlock !== undefined;
+    const validBlock = (value: unknown) => value === null || value === "codex" || value === "gemini";
+    if (hasBlock && (!validBlock(beforeBlock) || !validBlock(nextBlock))) return failure(400);
     const { rowCount } = await database().query(`
       UPDATE agenda_tasks t SET title = $3, project_id = $4, impact = $5,
         completed_at = CASE WHEN $6::boolean THEN COALESCE(t.completed_at, now()) ELSE NULL END,
         planned_on = CASE WHEN $11::boolean THEN $12::date ELSE t.planned_on END,
-        planned_time = CASE WHEN $11::boolean THEN $13::time ELSE t.planned_time END
+        planned_time = CASE WHEN $11::boolean THEN $13::time ELSE t.planned_time END,
+        blocked_by = CASE WHEN $16::boolean THEN $18::text ELSE t.blocked_by END
       WHERE t.owner_id = $1 AND t.id = $2
         AND EXISTS (SELECT 1 FROM agenda_projects p WHERE p.owner_id = $1 AND p.id = $4)
-        AND ((t.title = $7 AND t.project_id = $8 AND t.impact = $9 AND (t.completed_at IS NOT NULL) = $10::boolean AND (NOT $11::boolean OR (t.planned_on = $14::date AND t.planned_time IS NOT DISTINCT FROM $15::time)))
-          OR (t.title = $3 AND t.project_id = $4 AND t.impact = $5 AND (t.completed_at IS NOT NULL) = $6::boolean AND (NOT $11::boolean OR (t.planned_on = $12::date AND t.planned_time IS NOT DISTINCT FROM $13::time))))
+        AND ((t.title = $7 AND t.project_id = $8 AND t.impact = $9 AND (t.completed_at IS NOT NULL) = $10::boolean AND (NOT $11::boolean OR (t.planned_on = $14::date AND t.planned_time IS NOT DISTINCT FROM $15::time)) AND (NOT $16::boolean OR t.blocked_by IS NOT DISTINCT FROM $17::text))
+          OR (t.title = $3 AND t.project_id = $4 AND t.impact = $5 AND (t.completed_at IS NOT NULL) = $6::boolean AND (NOT $11::boolean OR (t.planned_on = $12::date AND t.planned_time IS NOT DISTINCT FROM $13::time)) AND (NOT $16::boolean OR t.blocked_by IS NOT DISTINCT FROM $18::text)))
       RETURNING t.id
     `, [owner, body.id, next.title, next.projectId, next.impact, next.completed,
-      before.title, before.projectId, before.impact, before.completed, hasPlan, nextPlan.plannedOn ?? null, nextPlan.plannedTime ?? null, beforePlan.plannedOn ?? null, beforePlan.plannedTime ?? null]);
+      before.title, before.projectId, before.impact, before.completed, hasPlan, nextPlan.plannedOn ?? null, nextPlan.plannedTime ?? null, beforePlan.plannedOn ?? null, beforePlan.plannedTime ?? null, hasBlock, beforeBlock ?? null, nextBlock ?? null]);
     return rowCount ? json({ id: body.id }) : failure(409);
   });
 }
